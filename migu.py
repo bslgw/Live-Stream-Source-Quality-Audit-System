@@ -175,10 +175,22 @@ def execute_link_correction_and_blacklist(raw_channels):
     cleaned_channels = []
     discard_count = 0
     rename_count = 0
+    
+    # 新增：定义非直播格式的后缀黑名单if category == "4K超清":
+    vod_extensions = [".mp4", ".mkv", ".avi", ".rmvb"]
+    
     for item in raw_channels:
         url = item.get("url", "")
         raw_name = item.get("raw_name", "")
         if not url: continue
+        
+        # 新增：绝杀点播文件后缀，去除参数后匹配
+        url_lower_no_params = url.lower().split("?")[0]
+        if any(url_lower_no_params.endswith(ext) for ext in vod_extensions):
+            register_discard(1, f"非直播源(点播文件)全局拦截", url, is_hktw=False)
+            discard_count += 1
+            continue
+            
         is_discarded = False
         current_name = raw_name
         
@@ -719,12 +731,12 @@ def step7_8_ffmpeg_pipeline_audit(item, cfg, is_hktw):
             if category == "4K超清":
                 if height < 2160:
                     register_discard(
-                    7,
-                    f"伪4K频道 ({width}x{height})",
-                    url,
-                    is_hktw
-                )
-                return False
+                        7,
+                        f"伪4K频道 ({width}x{height})",
+                        url,
+                        is_hktw
+                    )
+                    return False
            ### 结束  
         if height < cfg['min_height']:
             register_discard(7, f"画质低劣物理降维打击 (实测分辨率为: {width}x{height} < {cfg['min_height']}p)", url, is_hktw)
@@ -830,42 +842,56 @@ def step10_generate_hktw_local(hktw_list):
 def main():
     # 动态把合并的多源列表送入重构后的 Step 1 引擎
     lives = step1_fetch_all_configs(CONFIG_SOURCES)
-    if not lives: 
+    if not lives:
         print("❌ 所有的订阅配置源抓取解析均失败，请检查网络或源有效性。")
         return
-    
+
     survived_links = step2_parse_and_evict_dead_links(lives)
-    if not survived_links: return
-    
+    if not survived_links:
+        return
+
     domestic_raw, hktw_raw = step3_geo_ip_classify(survived_links)
     domestic_cleaned = step4_process_domestic_names(domestic_raw)
-    
     hktw_cleaned = step5_process_hktw_names(hktw_raw)
-    
+
     final_domestic_list = []
-    
+    final_hktw_list = []
+
     def run_quality_pipeline(item, is_hktw):
         url = item["url"]
         cfg = HKTW_CONFIG if is_hktw else MAINLAND_CONFIG
-        if not step6_stability_check(url, cfg, is_hktw): return None
-        ### url修改为 item
-        if not step7_8_ffmpeg_pipeline_audit(item, cfg, is_hktw): return None
+        if not step6_stability_check(url, cfg, is_hktw):
+            return None
+        if not step7_8_ffmpeg_pipeline_audit(item, cfg, is_hktw):
+            return None
+        print(f"{item['name']} -> {'HKTW_CONFIG' if is_hktw else 'MAINLAND_CONFIG'}")
         return item
 
     print(f"\n⚡ 进入并发质量流水线段：层层卡点严控中 (线程数: {MAX_WORKERS})...")
-    
+
+    # 国内组处理
     if domestic_cleaned:
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as dom_executor:
             futures = {dom_executor.submit(run_quality_pipeline, item, False): item for item in domestic_cleaned}
             for f in as_completed(futures):
                 res = f.result()
-                if res: final_domestic_list.append(res)
+                if res:
+                    final_domestic_list.append(res)
 
-    print(f"📊 检测结束：国内组通过卡点共 {len(final_domestic_list)} 条，港台组（直通直出）共 {len(hktw_cleaned)} 条。")
+    # 港台组处理
+    if hktw_cleaned:
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as hk_executor:
+            futures = {hk_executor.submit(run_quality_pipeline, item, True): item for item in hktw_cleaned}
+            for f in as_completed(futures):
+                res = f.result()
+                if res:
+                    final_hktw_list.append(res)
+
+    print(f"📊 检测结束：国内组通过卡点共 {len(final_domestic_list)} 条，港台组通过卡点共 {len(final_hktw_list)} 条。")
 
     step9_generate_domestic_and_upload(final_domestic_list)
-    step10_generate_hktw_local(hktw_cleaned)
-    
+    step10_generate_hktw_local(final_hktw_list)
+
     print("\n📝 正在将全量各拦截点被斩断的【国内组】无用直播源导出至当前目录下的 discard_report.txt ...")
     sorted_steps_dom = sorted(list(discard_registry_domestic.keys()))
     with open("./discard_report.txt", "w", encoding="utf-8") as rf:
@@ -873,9 +899,10 @@ def main():
             rf.write(f"{step_header}\n")
             for url in discard_registry_domestic[step_header]:
                 rf.write(f"{url}\n")
-            rf.write("\n")  
-            
+            rf.write("\n")
+
     print("🎉 港台双参数外置解耦重构审计版运行结束。港台源已全量直通导出。")
+
 
 if __name__ == "__main__":
     main()

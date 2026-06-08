@@ -12,17 +12,17 @@
     "min_speed_ratio": 0.8
   },
   "HKTW_CONFIG": {
-    "timeout_video": 30,
-    "timeout_stable": 8,
-    "connect_timeout_basic": 10,
-    "read_timeout_basic": 6,
-    "min_speed_dead": 61440,
-    "max_jitter_dead": 5,
-    "min_speed_normal": 102400,
-    "max_jitter_normal": 4,
-    "min_height": 480,
-    "min_speed_ratio": 0.5
-  },
+    "timeout_video": 65,
+    "timeout_stable": 20,
+    "connect_timeout_basic": 15,
+    "read_timeout_basic": 10,
+    "min_speed_dead": 20480,      
+    "max_jitter_dead": 9.0,
+    "min_speed_normal": 25600,    
+    "max_jitter_normal": 7.0,
+    "min_height": 288,
+    "min_speed_ratio": 0.10       
+},
   "HK_TW_BRANDS": [
     "凤凰",
     "鳳凰",
@@ -87,6 +87,163 @@
     "https://raw.githubusercontent.com/best-fan/iptv-sources/refs/heads/main/cn_all.m3u8",
     "https://raw.githubusercontent.com/mzky/checklist/master/itvlist.m3u",
     "https://iptv.cqshushu.com/jiekou.php?jk=txt&token=077488b34fd0a84dfc63291d55a153a9"
-  ]
+  ],
+
+  "CORRECTION_DB": [
+  {
+    "match": "http://rihou.cc:555/tv/",
+    "action": "discard"
+  },
+  {
+    "match": "http://jiange.dns.navy:10001",
+    "action": "discard"
+  },
+  {
+    "match": "http://lbyjlt.vv5678.cn:8880",
+    "action": "discard"
+  },
+  {
+    "match": "http://xhzza.v6.navy:34040",
+    "action": "discard"
+  },
+  {
+    "match": "http://120.87.19.109:80/PLTV/",
+    "action": "discard"
+  },
+  {
+    "match": "http://rrs01.hw.gmcc.net:8088",
+    "action": "discard"
+  },
+  {
+    "match": "http://27.154.99.234:3386/",
+    "action": "discard"
+  },
+  {
+    "match": "http://106.87.50.30:8888",
+    "action": "discard"
+  },
+  {
+    "match": "http://106.116.242.203:9999/rtp",
+    "action": "discard"
+  },
+  {
+    "match": "http://118.251.16.185:8188/udp",
+    "action": "discard"
+  },
+  {
+    "match": "http://111.162.205.209:8686/rtp",
+    "action": "discard"
+  },
+  {
+    "match": "https://live.ottiptv.cc",
+    "action": "discard"
+  },
+  {
+    "match": "https://live.ottiptv.cc/huya",
+    "action": "discard"
+  },
+  {
+    "match": "http://php.jdshipin.com:8880",
+    "action": "discard"
+  },
+  {
+    "match": "https://t26.cdn2020.com/video/m3u8",
+    "action": "discard"
+  },
+  {
+    "match": "https://iptv.catvod.com",
+    "action": "discard"
+  },
+  {
+    "match": "http://38.75.136.137:98/gslb/dsdqca",
+    "action": "discard"
+  },
+  {
+    "match": "http://182.61.15.163:9080",
+    "action": "discard"
+  },
+  {
+    "match": "https://liveh12.vtvprime.vn/",
+    "action": "discard"
+  },
+  {
+    "match": "http://go.bkpcp.top/mg",
+    "action": "discard"
+  },
+  {
+    "match": "http://tvpull.dxhmt.cn:9081/tv",
+    "action": "discard"
+  },
+  {
+    "match": "http://m.061899.xyz/mg/",
+    "action": "discard"
+  },
+  {
+    "match": "https://liveh12.vtvprime.vn/",
+    "action": "discard"
+  },
+  {
+    "match": "http://j.s.bkpcp.top//",
+    "action": "discard"
+  },
+  {
+    "match": "https://live01-cn-ali.zytlka.com/",
+    "action": "discard"
+  },
+  {
+    "match": "http://s.rocketdns.info:8080",
+    "action": "discard"
+  },
+  {
+    "match": "http://bot22.top:19999/udp/",
+    "action": "discard"
+  },
+  {
+    "match": "http://k.061899.xyz",
+    "action": "discard"
+  },
+  {
+    "match": "https://www.goodiptv.club/douyu",
+    "action": "discard"
+  },
+  {
+    "match": "http://81.137.213.119:4203/bysid",
+    "action": "discard"
+  },
+  {
+    "match": "https://live.ottiptv.cc/yy",
+    "action": "discard"
+  },
+  {
+    "match": "https://t33.cdn2020.com/video/m3u8",
+    "action": "discard"
+  },
+  {
+    "match": "/cdnlive/",
+    "action": "discard"
+  },
+  {
+    "match": "http://220.167.170.144:4000/rtp/239.120.1.111:8254",
+    "action": "discard"
+  },
+  {
+    "match": "http://183.164.237.29:8888/rtp/238.1.78.137:6968",
+    "action": "discard"
+  },
+  {
+    "match": "http://129.211.14.102",
+    "action": "discard"
+  },
+  {
+    "match": "https://chibrics.mediacdn.ru/cdn/brics/chinese/playlist.m3u8",
+    "action": "discard"
+  },
+  {
+    "match": "https://t.freetv.fun/live/xiang-jiao-2.ts",
+    "action": "rename",
+    "value": "香蕉台"
+  }
+]
+  
   
 }

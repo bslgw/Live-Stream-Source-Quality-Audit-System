@@ -50,6 +50,15 @@ DEFAULT_HK_TW_BRANDS = [
     "HBO", "AXN", "FOX", "DISCOVERY", "国家地理", "动物星球", "VIUTV", "HOY TV"
 ]
 
+
+DEFAULT_CORRECTION_DB = [
+    {"match": "http://rihou.cc:555/tv/", "action": "discard"},
+    {"match": "http://jiange.dns.navy:10001", "action": "discard"},
+    {"match": "https://t.freetv.fun/live/xiang-jiao-2.ts", "action": "rename", "value": "香蕉台"}
+]
+
+
+
 # 📡 多源配置列表：支持原版加密源，也完美支持 GitHub 的明文 m3u/m3u8 订阅链接
 DEFAULT_CONFIG_SOURCES = [
     "https://ppsll.cc.cd/ppsll",   
@@ -60,36 +69,47 @@ def load_or_create_user_config():
     """自动化配置管理：支持多源配置列表写入本地 config.json"""
     if not os.path.exists(CONFIG_FILE_PATH):
         print(f"💡 未检测到本地配置，正在为您自动生成个性化模板: {CONFIG_FILE_PATH}")
+        
         factory_data = {
             "MAINLAND_CONFIG": DEFAULT_MAINLAND_CONFIG,
             "HKTW_CONFIG": DEFAULT_HKTW_CONFIG,
             "HK_TW_BRANDS": DEFAULT_HK_TW_BRANDS,
-            "CONFIG_SOURCES": DEFAULT_CONFIG_SOURCES
+            "CONFIG_SOURCES": DEFAULT_CONFIG_SOURCES,
+            "CORRECTION_DB": DEFAULT_CORRECTION_DB          # ← 使用 DEFAULT_ 版本
         }
+        
         try:
             with open(CONFIG_FILE_PATH, "w", encoding="utf-8") as f:
                 json.dump(factory_data, f, indent=2, ensure_ascii=False)
-            print("   -> 默认出厂配置模版生成成功！用户未来可自由修改此文件进行个性化清洗。")
+            print("   -> 默认出厂配置模版生成成功！用户可修改 CORRECTION_DB")
         except Exception as e:
-            print(f"⚠️ 写入配置文件失败: {e}，将采用内存默认参数运行。")
-        return DEFAULT_MAINLAND_CONFIG, DEFAULT_HKTW_CONFIG, DEFAULT_HK_TW_BRANDS, DEFAULT_CONFIG_SOURCES
+            print(f"⚠️ 写入配置文件失败: {e}")
+            
+        # 返回默认值
+        return (DEFAULT_MAINLAND_CONFIG, DEFAULT_HKTW_CONFIG, 
+                DEFAULT_HK_TW_BRANDS, DEFAULT_CONFIG_SOURCES, DEFAULT_CORRECTION_DB)
+    
     else:
-        print(f"🚀 检测到个性化配置文件，正在注入用户自定义过滤参数...")
+        print(f"🚀 检测到个性化配置文件，正在加载...")
         try:
             with open(CONFIG_FILE_PATH, "r", encoding="utf-8") as f:
                 user_data = json.load(f)
+            
             m_cfg = user_data.get("MAINLAND_CONFIG", DEFAULT_MAINLAND_CONFIG)
             h_cfg = user_data.get("HKTW_CONFIG", DEFAULT_HKTW_CONFIG)
             brands = user_data.get("HK_TW_BRANDS", DEFAULT_HK_TW_BRANDS)
             sources = user_data.get("CONFIG_SOURCES", DEFAULT_CONFIG_SOURCES)
-            print("   -> 成功加载个性化矩阵！系统已按您的专属阈值重新对齐。")
-            return m_cfg, h_cfg, brands, sources
-        except Exception as e:
-            print(f"❌ 解析 config.json 失败: {e}。为保障系统不崩溃，自动回滚至出厂安全参数。")
-            return DEFAULT_MAINLAND_CONFIG, DEFAULT_HKTW_CONFIG, DEFAULT_HK_TW_BRANDS, DEFAULT_CONFIG_SOURCES
+            correction_db = user_data.get("CORRECTION_DB", DEFAULT_CORRECTION_DB)   # ← 关键
 
+            print("   -> 成功加载个性化配置（含 CORRECTION_DB）")
+            return m_cfg, h_cfg, brands, sources, correction_db
+            
+        except Exception as e:
+            print(f"❌ 解析 config.json 失败: {e}，使用默认参数")
+            return (DEFAULT_MAINLAND_CONFIG, DEFAULT_HKTW_CONFIG, 
+                    DEFAULT_HK_TW_BRANDS, DEFAULT_CONFIG_SOURCES, DEFAULT_CORRECTION_DB)
 # 实时加载配置
-MAINLAND_CONFIG, HKTW_CONFIG, HK_TW_BRANDS, CONFIG_SOURCES = load_or_create_user_config()
+MAINLAND_CONFIG, HKTW_CONFIG, HK_TW_BRANDS, CONFIG_SOURCES, CORRECTION_DB = load_or_create_user_config()
 
 # ==================== 🛠️ 其余静态核心字典区 ====================
 MAX_WORKERS = 5  
@@ -860,6 +880,11 @@ def main():
     def run_quality_pipeline(item, is_hktw):
         url = item["url"]
         cfg = HKTW_CONFIG if is_hktw else MAINLAND_CONFIG
+    # ================ 调试输出 =================
+        print(f"【DEBUG】频道: {item.get('name')} | is_hktw={is_hktw} | "
+              f"使用配置: {'HKTW_CONFIG' if is_hktw else 'MAINLAND_CONFIG'} | "
+              f"min_speed_normal={cfg['min_speed_normal']/1024}KB/s")
+    # ==========================================
         if not step6_stability_check(url, cfg, is_hktw):
             return None
         if not step7_8_ffmpeg_pipeline_audit(item, cfg, is_hktw):

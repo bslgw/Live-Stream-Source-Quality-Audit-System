@@ -167,6 +167,7 @@ CORRECTION_DB = [
     {"match": "http://220.167.170.144:4000/rtp/239.120.1.111:8254", "action": "discard"}, 
     {"match": "http://183.164.237.29:8888/rtp/238.1.78.137:6968", "action": "discard"}, 
     {"match": "http://129.211.14.102", "action": "discard"},    
+    {"match": "https://chibrics.mediacdn.ru/cdn/brics/chinese/playlist.m3u8", "action": "discard"}, 
    #{"match": "http://129.211.14.102", "action": "rename","value":""},    
 ]
 
@@ -609,12 +610,15 @@ def step5_process_hktw_names(hktw_group):
         raw_name = item["raw_name"]
         name_lower = raw_name.lower().replace(" ", "")
         
-        if len(name_lower) > 25 or any(k in name_lower for k in ["测试", "更新", "公告", "直播中", "暂留"]):
+     #   if len(name_lower) > 25 or any(k in name_lower for k in ["测试", "更新", "公告", "直播中", "暂留"]):
+     #       continue
+        if len(name_lower) > 25 or any(k in name_lower for k in ["测试", "更新", "公告", "直播中", "暂留", "购", "经典香港电影", "财经", "香港综合"]):
+            register_discard(4, f"排除无意义测试或野号行 ({raw_name})", item["url"], is_hktw=False)
             continue
-            
+          
         name = re.sub(r'\[.*?\]|\(.*?\)|\{.*?\}|（.*?）', '', raw_name)
         name = re.sub(r'[_#\-\s\t｜|]', '', name).upper()
-        name = name.replace("雙語", "").replace("双语", "").replace("高清", "").replace("FHD", "").replace("HD", "")
+        name = name.replace("雙語", "").replace("双语", "").replace("高清", "").replace("FHD", "").replace("HD", "").replace("4GTV", "").replace("备", "").replace("TVB功夫台", "TVB亚洲武俠").replace("AMC电影台", "AMC电影")
         name = convert_t2s(name)
         
         category = "港台频道"

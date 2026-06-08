@@ -168,7 +168,7 @@ CORRECTION_DB = [
     {"match": "http://183.164.237.29:8888/rtp/238.1.78.137:6968", "action": "discard"}, 
     {"match": "http://129.211.14.102", "action": "discard"},    
     {"match": "https://chibrics.mediacdn.ru/cdn/brics/chinese/playlist.m3u8", "action": "discard"}, 
-   #{"match": "http://129.211.14.102", "action": "rename","value":""},    
+    {"match": "https://t.freetv.fun/live/xiang-jiao-2.ts", "action": "rename","value":"香蕉台"}
 ]
 
 def execute_link_correction_and_blacklist(raw_channels):

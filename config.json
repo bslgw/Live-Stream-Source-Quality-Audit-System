@@ -1,27 +1,45 @@
 {
   "MAINLAND_CONFIG": {
-    "timeout_video": 20,
-    "timeout_stable": 5,
+    "timeout_video": 20.0,
+    "timeout_stable": 5.0,
     "connect_timeout_basic": 6,
     "read_timeout_basic": 4,
     "min_speed_dead": 102400,
-    "max_jitter_dead": 3,
-    "min_speed_normal": 184320,
-    "max_jitter_normal": 2,
+    "max_jitter_dead": 3.0,
+    "min_speed_normal": 584320,
+    "max_jitter_normal": 2.0,
     "min_height": 720,
-    "min_speed_ratio": 0.8
-  },
-  "HKTW_CONFIG": {
-    "timeout_video": 65,
-    "timeout_stable": 20,
-    "connect_timeout_basic": 15,
-    "read_timeout_basic": 10,
-    "min_speed_dead": 20480,      
-    "max_jitter_dead": 9.0,
-    "min_speed_normal": 25600,    
-    "max_jitter_normal": 7.0,
+    "min_speed_ratio": 0.8,
+    
+    "connect_timeout_stable": 5,
+    "allow_low_ratio": false,
+    "strict_zombie_check": true,
+    "strict_frame_check": true,
+    "max_black_border": 24,
+    "min_speed_4k": 307200,
+    "max_jitter_4k": 2.5
+},
+
+"HKTW_CONFIG": {
+    "timeout_video": 75,
+    "timeout_stable": 25,
+    "connect_timeout_basic": 40,     
+    "read_timeout_basic": 40,        
+    
+    "min_speed_dead": 680,
+    "max_jitter_dead": 3.0,
+    "min_speed_normal": 1432,
+    "max_jitter_normal": 20.0,
     "min_height": 288,
-    "min_speed_ratio": 0.10       
+    "min_speed_ratio": 0.08,
+    
+    "connect_timeout_stable": 15,
+    "allow_low_ratio": true,
+    "strict_zombie_check": false,
+    "strict_frame_check": false,
+    "max_black_border": 60,
+    "min_speed_4k": 100000,
+    "max_jitter_4k": 6.5
 },
   "HK_TW_BRANDS": [
     "凤凰",
@@ -78,14 +96,13 @@
     "https://raw.githubusercontent.com/suxuang/myIPTV/main/ipv4.m3u",
     "https://raw.githubusercontent.com/Jsnzkpg/Jsnzkpg/Jsnzkpg/Jsnzkpg1.m3u",
     "http://iptv.cqshushu.com/index.php?s=X4tQajuR-R2dtB3IcjLAuw&t=multicast&channels=1&format=m3u",
-    "https://taoiptv.com/lives/51025.txt?token=24386df823d0fb93",
-    "https://taoiptv.com/lives/44025.txt?token=24386df823d0fb93",
-    "https://taoiptv.com/lives/51024.txt?token=24386df823d0fb93",
-    "https://taoiptv.com/lives/50024.txt?token=24386df823d0fb93",
-    "https://taoiptv.com/lives/41024.txt?token=24386df823d0fb93",
-    "https://taoiptv.com/lives/21024.txt?token=24386df823d0fb93",
     "https://raw.githubusercontent.com/best-fan/iptv-sources/refs/heads/main/cn_all.m3u8",
     "https://raw.githubusercontent.com/mzky/checklist/master/itvlist.m3u",
+    "https://taoiptv.com/lives/51025.txt?token=f488e0a91ee68cbd",
+    "https://taoiptv.com/lives/44025.txt?token=f488e0a91ee68cbd",
+    "https://taoiptv.com/lives/44023.txt?token=f488e0a91ee68cbd",
+    "https://taoiptv.com/lives/41024.txt?token=f488e0a91ee68cbd",
+    "https://taoiptv.com/lives/37024.txt?token=f488e0a91ee68cbd",
     "https://iptv.cqshushu.com/jiekou.php?jk=txt&token=077488b34fd0a84dfc63291d55a153a9"
   ],
 

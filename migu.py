@@ -112,7 +112,7 @@ def load_or_create_user_config():
 MAINLAND_CONFIG, HKTW_CONFIG, HK_TW_BRANDS, CONFIG_SOURCES, CORRECTION_DB = load_or_create_user_config()
 
 # ==================== 🛠️ 其余静态核心字典区 ====================
-MAX_WORKERS = 5  
+MAX_WORKERS = 3  
 
 PROVINCIAL_SATELLITE_CHANNELS = [
     "安徽卫视", "北京卫视", "兵团卫视", "重庆卫视", "东方卫视", "东南卫视", 
@@ -152,40 +152,6 @@ PLAYER_HEADERS = {
 
 CORRECTION_DB = [
     {"match": "http://rihou.cc:555/tv/", "action": "discard"},  
-    {"match": "http://jiange.dns.navy:10001", "action": "discard"},                               
-    {"match": "http://lbyjlt.vv5678.cn:8880", "action": "discard"},            
-    {"match": "http://xhzza.v6.navy:34040","action": "discard"},     
-    {"match": "http://120.87.19.109:80/PLTV/", "action": "discard"},     
-    {"match": "http://rrs01.hw.gmcc.net:8088", "action": "discard"},     
-    {"match": "http://27.154.99.234:3386/", "action": "discard"},     
-    {"match": "http://106.87.50.30:8888", "action": "discard"},     
-    {"match": "http://106.116.242.203:9999/rtp", "action": "discard"},     
-    {"match": "http://118.251.16.185:8188/udp", "action": "discard"},     
-    {"match": "http://111.162.205.209:8686/rtp", "action": "discard"},                                  
-    {"match": "https://live.ottiptv.cc", "action": "discard"},            
-    {"match": "https://live.ottiptv.cc/huya", "action": "discard"},     
-    {"match": "http://php.jdshipin.com:8880", "action": "discard"},     
-    {"match": "https://t26.cdn2020.com/video/m3u8", "action": "discard"},  
-    {"match": "https://iptv.catvod.com", "action": "discard"},     
-    {"match": "http://38.75.136.137:98/gslb/dsdqca", "action": "discard"},     
-    {"match": "http://182.61.15.163:9080", "action": "discard"},     
-    {"match": "https://liveh12.vtvprime.vn/", "action": "discard"}, 
-    {"match": "http://go.bkpcp.top/mg", "action": "discard"},
-    {"match": "http://tvpull.dxhmt.cn:9081/tv", "action": "discard"},
-    {"match": "http://m.061899.xyz/mg/", "action": "discard"},
-    {"match": "https://liveh12.vtvprime.vn/", "action": "discard"},
-    {"match": "http://j.s.bkpcp.top//", "action": "discard"},
-    {"match": "https://live01-cn-ali.zytlka.com/", "action": "discard"},        
-    {"match": "http://s.rocketdns.info:8080", "action": "discard"},   
-    {"match": "http://bot22.top:19999/udp/", "action": "discard"},   
-    {"match": "http://k.061899.xyz", "action": "discard"},   
-    {"match": "https://www.goodiptv.club/douyu", "action": "discard"},   
-    {"match": "http://81.137.213.119:4203/bysid", "action": "discard"},   
-    {"match": "https://live.ottiptv.cc/yy", "action": "discard"},   
-    {"match": "https://t33.cdn2020.com/video/m3u8", "action": "discard"},   
-    {"match": "/cdnlive/", "action": "discard"},                   
-    {"match": "http://220.167.170.144:4000/rtp/239.120.1.111:8254", "action": "discard"}, 
-    {"match": "http://183.164.237.29:8888/rtp/238.1.78.137:6968", "action": "discard"}, 
     {"match": "http://129.211.14.102", "action": "discard"},    
     {"match": "https://chibrics.mediacdn.ru/cdn/brics/chinese/playlist.m3u8", "action": "discard"}, 
     {"match": "https://t.freetv.fun/live/xiang-jiao-2.ts", "action": "rename","value":"香蕉台"}
@@ -338,7 +304,7 @@ def step2_parse_and_evict_dead_links(lives_list):
             return []
 
         try:
-            r = requests.get(src_url, headers=headers, timeout=12)
+            r = requests.get(src_url, headers=headers, timeout=20)
             if r.status_code == 200:
                 return parse_text_to_list(r.content.decode('utf-8', errors='ignore'))
         except:
@@ -429,52 +395,55 @@ def step2_parse_and_evict_dead_links(lives_list):
         )
 
     def check_alive_basic(item):
-        is_hk = item.get("is_hktw_pre", False)
+        is_hk = item.get("is_hktw_pre", False) or item.get("is_hktw", False)
         cfg = HKTW_CONFIG if is_hk else MAINLAND_CONFIG
+
+        # 港台额外放宽
+        connect_to = cfg['connect_timeout_basic'] + (8 if is_hk else 0)
+        read_to = cfg['read_timeout_basic'] + (6 if is_hk else 0)
 
         try:
             with requests.get(
                 item["url"],
                 headers=PLAYER_HEADERS,
-                timeout=(
-                    cfg['connect_timeout_basic'],
-                    cfg['read_timeout_basic']
-                ),
+                timeout=(connect_to, read_to),
                 stream=True
             ) as r:
 
-                if r.status_code in [200, 206] and \
-                   'text/html' not in r.headers.get('Content-Type', '').lower():
-
+                if r.status_code in [200, 206]:
+                    # 尝试读取首包
                     try:
-                        chunk = next(r.iter_content(chunk_size=512), None)
-
+                        chunk = next(r.iter_content(chunk_size=1024), None)
                         if chunk:
                             return item
+                        else:
+                            # 虽然没拿到chunk，但HTTP状态正常，也放行港台
+                            if is_hk:
+                                print(f"   [宽松放行] 港台源 {item.get('raw_name')} 首包为空但状态正常")
+                                return item
+                    except:
+                        if is_hk:
+                            print(f"   [宽松放行] 港台源 {item.get('raw_name')} 首包读取异常但放行")
+                            return item
+                        else:
+                            register_discard(2, f"首包读取失败", item["url"], is_hktw=is_hk)
+                            return None
 
-                    except Exception as stream_err:
-                        register_discard(
-                            2,
-                            f"建立连接后首包数据流严重超时僵死 (HTTP {r.status_code} | {type(stream_err).__name__})",
-                            item["url"],
-                            is_hktw=is_hk
-                        )
-                        return None
+                if is_hk:
+                    # 港台即使状态码不对也尝试放行一部分
+                    print(f"   [宽松放行] 港台源 {item.get('raw_name')} HTTP {r.status_code} 仍尝试保留")
+                    return item
 
-                register_discard(
-                    2,
-                    f"基础连通性握手失败 (HTTP {r.status_code})",
-                    item["url"],
-                    is_hktw=is_hk
-                )
+                register_discard(2, f"基础连通性握手失败 (HTTP {r.status_code})", item["url"], is_hktw=is_hk)
 
-        except Exception as conn_err:
-            register_discard(
-                2,
-                f"基础网络不可达或连接直接引发震荡崩溃 ({type(conn_err).__name__})",
-                item["url"],
-                is_hktw=is_hk
-            )
+        except Exception as e:
+            err_name = type(e).__name__
+            if is_hk:
+                # 港台对 ReadTimeout / ConnectTimeout 特别宽松
+                if "Timeout" in err_name or "Connection" in err_name:
+                    print(f"   [宽松放行] 港台源 {item.get('raw_name')} 超时仍保留")
+                    return item
+            register_discard(2, f"基础网络不可达或连接直接引发震荡崩溃 ({err_name})", item["url"], is_hktw=is_hk)
 
         return None
 
@@ -663,59 +632,70 @@ def step5_process_hktw_names(hktw_group):
     return processed_hktw
 
 def step6_stability_check(url, cfg, is_hktw):
-    is_4k_url = any(k in url.lower() for k in ["4k", "uhd", "239.252.220.212", "239.3.1.236"]) 
-    connect_timeout = 8 if is_hktw else 5
+    """完全配置驱动的稳定性测速"""
+    is_4k_url = any(k in url.lower() for k in ["4k", "uhd", "239.252.220.212", "239.3.1.236"])
+    
+    connect_timeout = cfg.get('connect_timeout_stable', 8 if is_hktw else 5)
     read_timeout = cfg['timeout_stable']
     
     try:
-        with requests.get(url, headers=PLAYER_HEADERS, timeout=(connect_timeout, read_timeout), stream=True) as r:
-            if r.status_code not in [200, 206]: 
-                register_discard(6, f"测速响应低保线建立失败 (HTTP {r.status_code})", url, is_hktw)
+        with requests.get(url, headers=PLAYER_HEADERS, 
+                         timeout=(connect_timeout, read_timeout), stream=True) as r:
+            
+            if r.status_code not in [200, 206]:
+                register_discard(6, f"测速响应失败 (HTTP {r.status_code})", url, is_hktw)
                 return False
             
             start_time = time.time()
             total_bytes = 0
             last_chunk_time = start_time
-            max_jitter = 0  
+            max_jitter = 0
             
             for chunk in r.iter_content(chunk_size=65536):
-                if not chunk: break
+                if not chunk:
+                    break
                 current_time = time.time()
                 jitter = current_time - last_chunk_time
-                if jitter > max_jitter: max_jitter = jitter
+                if jitter > max_jitter:
+                    max_jitter = jitter
                 total_bytes += len(chunk)
                 last_chunk_time = current_time
-                if (current_time - start_time) > read_timeout: break
+                
+                if (current_time - start_time) > read_timeout:
+                    break
             
             duration = time.time() - start_time
-            if duration <= 0: return False
+            if duration <= 0:
+                return False
+                
             avg_speed = total_bytes / duration
             
+            # ==================== 配置驱动判断 ====================
             if max_jitter > cfg['max_jitter_dead'] or avg_speed < cfg['min_speed_dead']:
-                register_discard(6, f"触发网络生死线 (最大网络抖动:{max_jitter:.1f}s, 下载速:{avg_speed/1024:.1f}KB/s)", url, is_hktw)
+                register_discard(6, f"生死线未达标 (抖动:{max_jitter:.1f}s, 速度:{avg_speed/1024:.1f}KB/s)", url, is_hktw)
                 return False
 
             if is_4k_url:
-                if max_jitter > 2.5 or avg_speed < 300 * 1024:
-                    register_discard(6, f"4K超高规格带宽门槛未达标 (流速:{avg_speed/1024:.1f}KB/s)", url, is_hktw)
+                if max_jitter > cfg['max_jitter_4k'] or avg_speed < cfg['min_speed_4k']:
+                    register_discard(6, f"4K规格未达标 (速度:{avg_speed/1024:.1f}KB/s)", url, is_hktw)
                     return False
-                return True  
+                return True
 
+            # 普通频道
             if max_jitter > cfg['max_jitter_normal'] or avg_speed < cfg['min_speed_normal']:
-                register_discard(6, f"网络稳定性丢包震荡超标放行拒绝 (平均速率:{avg_speed/1024:.1f}KB/s)", url, is_hktw)
+                register_discard(6, f"稳定性未达标 (抖动:{max_jitter:.1f}s, 速度:{avg_speed/1024:.1f}KB/s)", url, is_hktw)
                 return False
-            return True  
+                
+            return True
+            
     except Exception as e:
-        register_discard(6, f"拉流阶段网络极度超时或震荡断链 ({type(e).__name__})", url, is_hktw)
+        register_discard(6, f"测速阶段异常 ({type(e).__name__})", url, is_hktw)
         return False
 
 def step7_8_ffmpeg_pipeline_audit(item, cfg, is_hktw):
-### url 改成了item
+    """完全配置驱动的FFmpeg深度审计"""
     url = item["url"]
-    ### 新加的
     category = item.get("category", "")    
-    ### 新加的
-    # url 修改为 item
     FFMPEG_BIN = '/root/ffmpeg' if os.path.exists('/root/ffmpeg') else 'ffmpeg'
     timeout_str = str(int(cfg['timeout_video'] * 1000000))
     
@@ -725,76 +705,79 @@ def step7_8_ffmpeg_pipeline_audit(item, cfg, is_hktw):
         '-vf', 'cropdetect=limit=32:round=2', 
         '-f', 'null', '-'
     ]
+    
     try:
-        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=cfg['timeout_video'])
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
+                           text=True, timeout=cfg['timeout_video'])
+        
         if res.returncode != 0:
-            register_discard(8, f"FFmpeg解码返回崩溃指令状态码 ({res.returncode})", url, is_hktw)
+            register_discard(8, f"FFmpeg返回非0状态码 ({res.returncode})", url, is_hktw)
             return False
+            
         stderr_output = res.stderr
         
-        video_line = None
-        for line in stderr_output.split('\n'):
-            if 'Stream #' in line and 'Video:' in line:
-                video_line = line
-                break
+        # 提取视频流信息
+        video_line = next((line for line in stderr_output.split('\n') 
+                          if 'Stream #' in line and 'Video:' in line), None)
         if not video_line:
-            register_discard(7, "无法成功剥离解析出Video视讯轨道元数据", url, is_hktw)
-            return False
-            
-        width, height = 0, 0
-        res_match = re.search(r'(\d{3,4})x(\d{3,4})', video_line)
-        if res_match:
-            width = int(res_match.group(1))
-            height = int(res_match.group(2))
-            
-            # 4K频道真实分辨率校验
-            if category == "4K超清":
-                if height < 2160:
-                    register_discard(
-                        7,
-                        f"伪4K频道 ({width}x{height})",
-                        url,
-                        is_hktw
-                    )
-                    return False
-           ### 结束  
-        if height < cfg['min_height']:
-            register_discard(7, f"画质低劣物理降维打击 (实测分辨率为: {width}x{height} < {cfg['min_height']}p)", url, is_hktw)
+            register_discard(7, "无法解析Video轨道元数据", url, is_hktw)
             return False
 
-        if "frame=" not in stderr_output:
-            register_discard(8, "黑屏僵尸源拦截 (未捕获到任何有效图像输出帧 frame=)", url, is_hktw)
+        # 解析分辨率
+        res_match = re.search(r'(\d{3,4})x(\d{3,4})', video_line)
+        width = int(res_match.group(1)) if res_match else 0
+        height = int(res_match.group(2)) if res_match else 0
+
+        # ==================== 完全由 config.json 控制 ====================
+        if height < cfg['min_height']:
+            register_discard(7, f"分辨率过低 ({height}p < {cfg['min_height']}p)", url, is_hktw)
             return False
-            
+
+        # 解码速率检查
         speed_all = re.findall(r'speed=\s*([\d\.]+)x', stderr_output)
-        if speed_all:
+        if speed_all and not cfg.get('allow_low_ratio', False):
             try:
-                speed_val = float(speed_all[-1])  
+                speed_val = float(speed_all[-1])
                 if speed_val < cfg['min_speed_ratio']:
-                    register_discard(8, f"解码传输速率倒挂判定为严重丢帧幻灯片 (最终speed: {speed_val}x < {cfg['min_speed_ratio']}x)", url, is_hktw)
+                    register_discard(8, f"解码速率过低 ({speed_val}x < {cfg['min_speed_ratio']}x)", url, is_hktw)
                     return False
-            except ValueError: pass
-                
-        zombie_keywords = {
-            "PPS id out of range": "破损NAL控制集画面一闪即黑", 
-            "Error parsing NAL unit": "NAL单元破损碎裂无法持续渲染", 
-            "Could not find ref with POC": "基础P/B参考帧丢失导致画面持续黑屏",
-            "corrupt decoded frame": "下发数据大面积损坏画面严重花屏闪烁"
-        }
-        for kw, desc in zombie_keywords.items():
-            if kw in stderr_output:
-                register_discard(8, f"流式解析致命画质损伤报错 ({desc})", url, is_hktw)
+            except: pass
+
+        # 帧检查
+        if cfg.get('strict_frame_check', True):
+            if "frame=0" in stderr_output or "frame= " not in stderr_output:
+                register_discard(8, "黑屏或无有效帧输出", url, is_hktw)
                 return False
-                
+
+        # Zombie 致命错误检查
+        if cfg.get('strict_zombie_check', True):
+            zombie_keywords = {
+                "PPS id out of range": "NAL控制集错误",
+                "Error parsing NAL unit": "NAL单元损坏",
+                "Could not find ref with POC": "参考帧丢失",
+                "corrupt decoded frame": "画面损坏"
+            }
+            for kw, desc in zombie_keywords.items():
+                if kw in stderr_output:
+                    register_discard(8, f"致命解码错误 ({desc})", url, is_hktw)
+                    return False
+
+        # 黑边检查
         crop_lines = re.findall(r'crop=(\d+):(\d+):(\d+):(\d+)', stderr_output)
         if crop_lines and width > 0 and height > 0:
             crop_w, crop_h, _, _ = map(int, crop_lines[-1])
-            if (width - crop_w) > 24 or (height - crop_h) > 24:
-                register_discard(8, f"黑边裁剪边缘严重超缩进判定为劣质边框源", url, is_hktw)
+            max_border = cfg.get('max_black_border', 24)
+            if (width - crop_w) > max_border or (height - crop_h) > max_border:
+                register_discard(8, f"黑边过大 (> {max_border}像素)", url, is_hktw)
                 return False
+
         return True
+
+    except subprocess.TimeoutExpired:
+        register_discard(8, "FFmpeg执行超时", url, is_hktw)
+        return False
     except Exception as e:
-        register_discard(8, f"底层分析管道发生意外瘫痪性崩溃 ({type(e).__name__})", url, is_hktw)
+        register_discard(8, f"FFmpeg执行异常 ({type(e).__name__})", url, is_hktw)
         return False
 
 def step9_generate_domestic_and_upload(domestic_list):

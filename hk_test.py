@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-港台直播源质量审计调试工具
-用于单链接深度诊断，输出每一步的详细处理过程和判定结果
+港台直播源批量质量审计调试工具
+读取 hk.m3u，对每条港台源执行完整诊断，输出详细结果到文件
 """
 
 import requests
@@ -10,17 +10,19 @@ import time
 import subprocess
 import socket
 import json
+import os
 from urllib.parse import urlparse
+from datetime import datetime
 
-# ==================== 港台组专用配置 ====================
+# ==================== 港台组配置 ====================
 HKTW_CONFIG = {
     "timeout_video": 75,
     "timeout_stable": 25,
     "connect_timeout_basic": 40,
     "read_timeout_basic": 40,
-    "min_speed_dead": 15360,          # 15KB/s 生死线
-    "max_jitter_dead": 10.0,          # 10秒最大抖动
-    "min_speed_normal": 18432,        # 18KB/s 正常速度
+    "min_speed_dead": 25,            # 0.68KB/s 生死线（极低）
+    "max_jitter_dead": 3.0,           # 3秒最大抖动
+    "min_speed_normal": 1432,         # 1.4KB/s 正常速度（极低）
     "max_jitter_normal": 20.0,        # 20秒正常抖动
     "min_height": 288,                # 288p最低分辨率
     "min_speed_ratio": 0.08,          # 0.08x最低解码速率
@@ -33,14 +35,12 @@ HKTW_CONFIG = {
     "max_jitter_4k": 6.5
 }
 
-# 播放器请求头
 PLAYER_HEADERS = {
     'User-Agent': 'VLC/3.0.16 LibVLC/3.0.16',
     'Accept': '*/*',
     'Connection': 'close'
 }
 
-# 港台频道识别关键词
 HK_TW_BRANDS = [
     "凤凰", "鳳凰", "TVB", "翡翠台", "翡翠臺", "明珠台", "明珠臺", 
     "东森", "東森", "中天", "纬来", "緯來", "三立", "八大", "年代", 
@@ -51,7 +51,6 @@ HK_TW_BRANDS = [
     "国家地理", "动物星球", "VIUTV", "HOY TV"
 ]
 
-# 本地知名港台频道列表
 LOCAL_HKTW_CHANNELS = [
     "中天新闻", "中天综合", "中天亚洲", "凤凰资讯", "凤凰卫视", 
     "凤凰中文", "凤凰香港", "TVBS新闻", "TVBS欢乐台", "TVBS", 
@@ -66,7 +65,6 @@ LOCAL_HKTW_CHANNELS = [
     "国家地理", "动物星球"
 ]
 
-# 繁体转简体映射
 TRADITIONAL_TO_SIMPLIFIED = {
     '寰': '寰', '宇': '宇', '新': '新', '聞': '闻', '台': '台', 
     '臺': '台', '東': '东', '森': '森', '緯': '纬', '來': '来', 
@@ -93,73 +91,66 @@ def convert_t2s(text):
     return "".join(TRADITIONAL_TO_SIMPLIFIED.get(char, char) for char in text)
 
 
-def print_separator(title):
-    """打印分隔线"""
-    print("\n" + "=" * 80)
-    print(f"  {title}")
-    print("=" * 80)
+def parse_hk_m3u(filepath):
+    """解析 hk.m3u 文件，提取频道名和URL"""
+    channels = []
+    
+    if not os.path.exists(filepath):
+        print(f"❌ 文件不存在: {filepath}")
+        return channels
+    
+    with open(filepath, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+    
+    for i in range(len(lines)):
+        line = lines[i].strip()
+        if line.startswith('#EXTINF:'):
+            # 提取频道名
+            name_match = re.search(r',(.+)$', line)
+            if name_match:
+                name = name_match.group(1).strip()
+                # 取下一行的URL
+                if i + 1 < len(lines):
+                    url = lines[i + 1].strip()
+                    if url.startswith('http'):
+                        channels.append({
+                            'raw_name': name,
+                            'url': url
+                        })
+    
+    return channels
 
 
-def print_config():
-    """打印当前港台配置"""
-    print_separator("📋 当前港台组配置参数")
-    print(f"  超时设置:")
-    print(f"    - FFmpeg视频超时: {HKTW_CONFIG['timeout_video']}秒")
-    print(f"    - 稳定性测试超时: {HKTW_CONFIG['timeout_stable']}秒")
-    print(f"    - 基础连接超时: {HKTW_CONFIG['connect_timeout_basic']}秒")
-    print(f"    - 基础读取超时: {HKTW_CONFIG['read_timeout_basic']}秒")
-    print(f"    - 稳定性连接超时: {HKTW_CONFIG['connect_timeout_stable']}秒")
+def check_channel_name(raw_name, url):
+    """Step 1: 频道名称检查和净化"""
+    result = {
+        'step': '名称检查',
+        'passed': False,
+        'raw_name': raw_name,
+        'cleaned_name': None,
+        'reason': '',
+        'is_hktw': False,
+        'matched_brand': None
+    }
     
-    print(f"\n  速度/抖动阈值:")
-    print(f"    - 生死线速度: {HKTW_CONFIG['min_speed_dead']/1024:.2f} KB/s")
-    print(f"    - 生死线抖动: {HKTW_CONFIG['max_jitter_dead']}秒")
-    print(f"    - 正常速度: {HKTW_CONFIG['min_speed_normal']/1024:.2f} KB/s")
-    print(f"    - 正常抖动: {HKTW_CONFIG['max_jitter_normal']}秒")
-    print(f"    - 4K最低速度: {HKTW_CONFIG['min_speed_4k']/1024:.2f} KB/s")
-    print(f"    - 4K最大抖动: {HKTW_CONFIG['max_jitter_4k']}秒")
-    
-    print(f"\n  质量门槛:")
-    print(f"    - 最低分辨率: {HKTW_CONFIG['min_height']}p")
-    print(f"    - 最低解码速率: {HKTW_CONFIG['min_speed_ratio']}x")
-    print(f"    - 最大黑边: {HKTW_CONFIG['max_black_border']}像素")
-    
-    print(f"\n  宽松策略:")
-    print(f"    - 允许低解码速率: {HKTW_CONFIG['allow_low_ratio']}")
-    print(f"    - 严格僵尸检查: {HKTW_CONFIG['strict_zombie_check']}")
-    print(f"    - 严格帧检查: {HKTW_CONFIG['strict_frame_check']}")
-
-
-def step1_check_channel_name(url, raw_name=None):
-    """
-    第1步：频道名称检查和净化
-    """
-    print_separator("📝 第1步: 频道名称检查和净化")
-    
-    if not raw_name:
-        # 从URL提取可能的名称
-        parsed = urlparse(url)
-        raw_name = parsed.path.split('/')[-1] or "未知频道"
-    
-    print(f"  原始名称: '{raw_name}'")
+    name_lower = raw_name.lower().replace(" ", "")
     
     # 检查名称长度
-    name_lower = raw_name.lower().replace(" ", "")
     if len(name_lower) > 25:
-        print(f"  ❌ 名称过长 ({len(name_lower)}字符 > 25), 原因: 可能是垃圾源")
-        return None, "名称过长"
+        result['reason'] = f"名称过长 ({len(name_lower)}字符 > 25)"
+        return result
     
     # 检查无效关键词
     invalid_keywords = ["测试", "更新", "公告", "直播中", "暂留", "购", "经典香港电影", "财经", "香港综合"]
     matched_invalid = [k for k in invalid_keywords if k in name_lower]
     if matched_invalid:
-        print(f"  ❌ 包含无效关键词: {matched_invalid}, 原因: 非正式直播频道")
-        return None, f"无效关键词: {matched_invalid}"
+        result['reason'] = f"无效关键词: {matched_invalid}"
+        return result
     
     # 检查是否为港台频道
     is_hktw = any(k.lower() in name_lower for k in HK_TW_BRANDS) or \
               any(loc in name_lower for loc in ["香港", "台湾", "澳门", "澳門"])
-    
-    print(f"  港台频道识别: {'✅ 是' if is_hktw else '⚠️ 否 (但仍继续处理)'}")
+    result['is_hktw'] = is_hktw
     
     # 名称净化
     name = re.sub(r'\[.*?\]|\(.*?\)|\{.*?\}|（.*?）', '', raw_name)
@@ -172,61 +163,69 @@ def step1_check_channel_name(url, raw_name=None):
     
     # 匹配知名港台频道
     sorted_channels = sorted(LOCAL_HKTW_CHANNELS, key=len, reverse=True)
-    matched_channel = None
     for std_hk in sorted_channels:
         if std_hk in name:
-            matched_channel = std_hk
-            break
+            result['matched_brand'] = std_hk
+            result['cleaned_name'] = std_hk
+            result['passed'] = True
+            result['reason'] = f"匹配知名频道: {std_hk}"
+            return result
     
-    if matched_channel:
-        print(f"  ✅ 匹配知名频道: {matched_channel}")
-        return matched_channel, "成功匹配"
-    else:
-        print(f"  ⚠️ 未匹配知名列表, 使用净化名称: '{name}'")
-        return name, "使用净化名称"
+    # 没有匹配但也不是无效的
+    result['cleaned_name'] = name
+    result['passed'] = True
+    result['reason'] = f"使用净化名称: {name}"
+    return result
 
 
-def step2_dns_resolve(url):
-    """
-    第2步: DNS解析
-    """
-    print_separator("🌐 第2步: DNS解析")
+def dns_resolve(url):
+    """Step 2: DNS解析"""
+    result = {
+        'step': 'DNS解析',
+        'passed': False,
+        'hostname': '',
+        'ip': '',
+        'resolve_time_ms': 0,
+        'error': ''
+    }
     
     try:
         hostname = urlparse(url).hostname
         if not hostname:
-            print(f"  ❌ 无法从URL提取主机名")
-            return None
+            result['error'] = "无法提取主机名"
+            return result
         
-        print(f"  主机名: {hostname}")
+        result['hostname'] = hostname
         
         start_time = time.time()
         ip = socket.gethostbyname(hostname)
-        resolve_time = (time.time() - start_time) * 1000
-        
-        print(f"  ✅ 解析成功: {ip}")
-        print(f"  ⏱️  解析耗时: {resolve_time:.0f}ms")
-        return ip
+        result['resolve_time_ms'] = (time.time() - start_time) * 1000
+        result['ip'] = ip
+        result['passed'] = True
         
     except socket.gaierror as e:
-        print(f"  ❌ DNS解析失败: {e}")
-        return None
+        result['error'] = f"DNS解析失败: {e}"
     except Exception as e:
-        print(f"  ❌ 解析异常: {e}")
-        return None
+        result['error'] = f"异常: {e}"
+    
+    return result
 
 
-def step3_basic_connectivity(url):
-    """
-    第3步: 基础连通性测试
-    """
-    print_separator("🔗 第3步: 基础连通性测试")
+def basic_connectivity(url):
+    """Step 3: 基础连通性测试"""
+    result = {
+        'step': '基础连通性',
+        'passed': False,
+        'http_status': 0,
+        'connect_time': 0,
+        'first_chunk': False,
+        'first_chunk_size': 0,
+        'content_type': '',
+        'note': ''
+    }
     
-    connect_timeout = HKTW_CONFIG['connect_timeout_basic'] + 8  # 港台额外放宽8秒
-    read_timeout = HKTW_CONFIG['read_timeout_basic'] + 6  # 港台额外放宽6秒
-    
-    print(f"  连接超时: {connect_timeout}秒")
-    print(f"  读取超时: {read_timeout}秒")
+    connect_timeout = HKTW_CONFIG['connect_timeout_basic'] + 8
+    read_timeout = HKTW_CONFIG['read_timeout_basic'] + 6
     
     try:
         start_time = time.time()
@@ -236,74 +235,64 @@ def step3_basic_connectivity(url):
             timeout=(connect_timeout, read_timeout),
             stream=True
         )
-        connect_time = time.time() - start_time
-        
-        print(f"  ✅ HTTP状态码: {response.status_code}")
-        print(f"  ⏱️  连接耗时: {connect_time:.2f}秒")
-        
-        # 打印响应头信息
-        content_type = response.headers.get('Content-Type', 'unknown')
-        content_length = response.headers.get('Content-Length', 'unknown')
-        print(f"  📋 Content-Type: {content_type}")
-        print(f"  📋 Content-Length: {content_length}")
+        result['connect_time'] = time.time() - start_time
+        result['http_status'] = response.status_code
+        result['content_type'] = response.headers.get('Content-Type', '')
         
         if response.status_code in [200, 206]:
-            # 尝试读取首包
             try:
                 chunk_start = time.time()
                 chunk = next(response.iter_content(chunk_size=1024), None)
-                chunk_time = time.time() - chunk_start
                 
                 if chunk:
-                    print(f"  ✅ 首包接收成功")
-                    print(f"  📦 首包大小: {len(chunk)} bytes")
-                    print(f"  ⏱️  首包耗时: {chunk_time:.2f}秒")
-                    return True
+                    result['first_chunk'] = True
+                    result['first_chunk_size'] = len(chunk)
+                    result['passed'] = True
                 else:
-                    # 港台即使首包为空也放行
-                    print(f"  ⚠️ 首包为空，但港台组宽松放行")
-                    return True
-            except Exception as e:
-                # 港台即使首包读取异常也放行
-                print(f"  ⚠️ 首包读取异常: {e}")
-                print(f"  ✅ 港台组宽松放行")
-                return True
+                    result['note'] = "首包为空，但港台组宽松放行"
+                    result['passed'] = True
+            except:
+                result['note'] = "首包读取异常，但港台组宽松放行"
+                result['passed'] = True
         else:
-            # 港台即使状态码不对也尝试放行
-            print(f"  ⚠️ HTTP状态码异常，但港台组宽松放行")
-            return True
+            result['note'] = f"HTTP {response.status_code}，港台组宽松放行"
+            result['passed'] = True
             
     except requests.exceptions.ConnectTimeout:
-        print(f"  ❌ 连接超时 (>{connect_timeout}秒)")
-        return False
+        result['error'] = f"连接超时 (>{connect_timeout}秒)"
+        result['passed'] = False
     except requests.exceptions.ReadTimeout:
-        print(f"  ❌ 读取超时 (>{read_timeout}秒)")
-        # 港台对超时也宽松放行
-        print(f"  ✅ 港台组对超时宽松放行")
-        return True
+        result['error'] = f"读取超时 (>{read_timeout}秒)"
+        result['note'] = "超时但港台组宽松放行"
+        result['passed'] = True
     except Exception as e:
-        print(f"  ❌ 连接异常: {type(e).__name__} - {e}")
-        # 检查是否是超时相关异常
-        if "Timeout" in type(e).__name__ or "Connection" in type(e).__name__:
-            print(f"  ✅ 港台组对超时/连接异常宽松放行")
-            return True
-        return False
-
-
-def step4_stability_check(url):
-    """
-    第4步: 稳定性测速
-    """
-    print_separator("⚡ 第4步: 稳定性测速")
+        err_name = type(e).__name__
+        result['error'] = f"{err_name}: {e}"
+        if "Timeout" in err_name or "Connection" in err_name:
+            result['note'] = "超时/连接异常，港台组宽松放行"
+            result['passed'] = True
     
-    is_4k = any(k in url.lower() for k in ["4k", "uhd", "239.252.220.212", "239.3.1.236"])
+    return result
+
+
+def stability_check(url):
+    """Step 4: 稳定性测速"""
+    result = {
+        'step': '稳定性测速',
+        'passed': False,
+        'duration': 0,
+        'total_bytes': 0,
+        'avg_speed_kbps': 0,
+        'max_jitter': 0,
+        'chunk_count': 0,
+        'is_4k': False,
+        'failure_reason': ''
+    }
+    
+    result['is_4k'] = any(k in url.lower() for k in ["4k", "uhd", "239.252.220.212", "239.3.1.236"])
     
     connect_timeout = HKTW_CONFIG['connect_timeout_stable']
     read_timeout = HKTW_CONFIG['timeout_stable']
-    
-    print(f"  4K频道: {'是' if is_4k else '否'}")
-    print(f"  测速时长: {read_timeout}秒")
-    print(f"  连接超时: {connect_timeout}秒")
     
     try:
         start_time = time.time()
@@ -315,15 +304,13 @@ def step4_stability_check(url):
         )
         
         if response.status_code not in [200, 206]:
-            print(f"  ❌ 测速响应失败 (HTTP {response.status_code})")
-            return False, 0, 0
+            result['failure_reason'] = f"HTTP {response.status_code}"
+            return result
         
         total_bytes = 0
         last_chunk_time = time.time()
         max_jitter = 0
         chunk_count = 0
-        
-        print(f"\n  📊 开始接收数据...")
         
         for chunk in response.iter_content(chunk_size=65536):
             if not chunk:
@@ -336,87 +323,75 @@ def step4_stability_check(url):
             chunk_count += 1
             last_chunk_time = current_time
             
-            elapsed = current_time - start_time
-            
-            # 每秒打印一次进度
-            if chunk_count % 15 == 0 or elapsed >= read_timeout - 1:
-                speed = total_bytes / elapsed if elapsed > 0 else 0
-                print(f"    ⏱️  {elapsed:.1f}s | 已接收: {total_bytes/1024:.1f}KB | "
-                      f"速度: {speed/1024:.1f}KB/s | 最大抖动: {max_jitter:.2f}s")
-            
-            if elapsed >= read_timeout:
+            if (current_time - start_time) >= read_timeout:
                 break
         
         duration = time.time() - start_time
-        avg_speed = total_bytes / duration if duration > 0 else 0
+        result['duration'] = duration
+        result['total_bytes'] = total_bytes
+        result['max_jitter'] = max_jitter
+        result['chunk_count'] = chunk_count
         
-        print(f"\n  📈 测速结果汇总:")
-        print(f"    总时长: {duration:.2f}秒")
-        print(f"    总数据: {total_bytes/1024:.1f}KB ({total_bytes} bytes)")
-        print(f"    平均速度: {avg_speed/1024:.2f}KB/s")
-        print(f"    最大抖动: {max_jitter:.2f}秒")
-        print(f"    数据块数: {chunk_count}")
-        
-        # 判断通过与否
-        print(f"\n  📋 判定标准:")
-        print(f"    生死线速度: {HKTW_CONFIG['min_speed_dead']/1024:.2f}KB/s")
-        print(f"    生死线抖动: {HKTW_CONFIG['max_jitter_dead']}秒")
-        print(f"    正常速度: {HKTW_CONFIG['min_speed_normal']/1024:.2f}KB/s")
-        print(f"    正常抖动: {HKTW_CONFIG['max_jitter_normal']}秒")
+        if duration > 0:
+            result['avg_speed_kbps'] = (total_bytes / duration) / 1024
         
         # 生死线检查
-        if max_jitter > HKTW_CONFIG['max_jitter_dead'] or avg_speed < HKTW_CONFIG['min_speed_dead']:
-            print(f"\n  ❌ 生死线未达标!")
-            if max_jitter > HKTW_CONFIG['max_jitter_dead']:
-                print(f"     抖动 {max_jitter:.2f}s > {HKTW_CONFIG['max_jitter_dead']}s")
-            if avg_speed < HKTW_CONFIG['min_speed_dead']:
-                print(f"     速度 {avg_speed/1024:.2f}KB/s < {HKTW_CONFIG['min_speed_dead']/1024:.2f}KB/s")
-            return False, avg_speed, max_jitter
+        if max_jitter > HKTW_CONFIG['max_jitter_dead']:
+            result['failure_reason'] = f"抖动 {max_jitter:.2f}s > 生死线 {HKTW_CONFIG['max_jitter_dead']}s"
+            return result
+        
+        if total_bytes / max(duration, 0.1) < HKTW_CONFIG['min_speed_dead']:
+            result['failure_reason'] = f"速度 {result['avg_speed_kbps']:.2f}KB/s < 生死线 {HKTW_CONFIG['min_speed_dead']/1024:.2f}KB/s"
+            return result
         
         # 4K检查
-        if is_4k:
-            if max_jitter > HKTW_CONFIG['max_jitter_4k'] or avg_speed < HKTW_CONFIG['min_speed_4k']:
-                print(f"\n  ❌ 4K规格未达标!")
-                return False, avg_speed, max_jitter
-            print(f"\n  ✅ 4K测速通过!")
-            return True, avg_speed, max_jitter
+        if result['is_4k']:
+            if max_jitter > HKTW_CONFIG['max_jitter_4k'] or \
+               (total_bytes / max(duration, 0.1)) < HKTW_CONFIG['min_speed_4k']:
+                result['failure_reason'] = "4K规格未达标"
+                return result
+            result['passed'] = True
+            return result
         
         # 普通频道检查
-        if max_jitter > HKTW_CONFIG['max_jitter_normal'] or avg_speed < HKTW_CONFIG['min_speed_normal']:
-            print(f"\n  ❌ 稳定性未达标!")
-            if max_jitter > HKTW_CONFIG['max_jitter_normal']:
-                print(f"     抖动 {max_jitter:.2f}s > {HKTW_CONFIG['max_jitter_normal']}s")
-            if avg_speed < HKTW_CONFIG['min_speed_normal']:
-                print(f"     速度 {avg_speed/1024:.2f}KB/s < {HKTW_CONFIG['min_speed_normal']/1024:.2f}KB/s")
-            return False, avg_speed, max_jitter
+        if max_jitter > HKTW_CONFIG['max_jitter_normal']:
+            result['failure_reason'] = f"抖动 {max_jitter:.2f}s > 正常 {HKTW_CONFIG['max_jitter_normal']}s"
+            return result
         
-        print(f"\n  ✅ 测速通过!")
-        return True, avg_speed, max_jitter
+        if total_bytes / max(duration, 0.1) < HKTW_CONFIG['min_speed_normal']:
+            result['failure_reason'] = f"速度 {result['avg_speed_kbps']:.2f}KB/s < 正常 {HKTW_CONFIG['min_speed_normal']/1024:.2f}KB/s"
+            return result
         
-    except requests.exceptions.Timeout:
-        print(f"  ❌ 测速超时")
-        return False, 0, 0
+        result['passed'] = True
+        
     except Exception as e:
-        print(f"  ❌ 测速异常: {type(e).__name__} - {e}")
-        return False, 0, 0
+        result['failure_reason'] = f"{type(e).__name__}: {e}"
+    
+    return result
 
 
-def step5_ffmpeg_audit(url):
-    """
-    第5步: FFmpeg深度审计
-    """
-    print_separator("🎬 第5步: FFmpeg深度审计")
+def ffmpeg_audit(url, category=""):
+    """Step 5: FFmpeg深度审计"""
+    result = {
+        'step': 'FFmpeg审计',
+        'passed': False,
+        'duration': 0,
+        'return_code': 0,
+        'width': 0,
+        'height': 0,
+        'decode_speed': 0,
+        'has_frames': False,
+        'crop_w': 0,
+        'crop_h': 0,
+        'border_w': 0,
+        'border_h': 0,
+        'zombie_errors': [],
+        'failure_reason': ''
+    }
     
-    # 查找ffmpeg
-    ffmpeg_bin = '/root/ffmpeg' if __import__('os').path.exists('/root/ffmpeg') else 'ffmpeg'
-    print(f"  FFmpeg路径: {ffmpeg_bin}")
-    
+    ffmpeg_bin = '/root/ffmpeg' if os.path.exists('/root/ffmpeg') else 'ffmpeg'
     timeout = HKTW_CONFIG['timeout_video']
     timeout_us = str(int(timeout * 1000000))
-    
-    print(f"  超时设置: {timeout}秒")
-    print(f"  最低分辨率: {HKTW_CONFIG['min_height']}p")
-    print(f"  最低解码速率: {HKTW_CONFIG['min_speed_ratio']}x")
     
     cmd = [
         ffmpeg_bin, '-y', '-rw_timeout', timeout_us,
@@ -425,81 +400,63 @@ def step5_ffmpeg_audit(url):
         '-f', 'null', '-'
     ]
     
-    print(f"\n  执行命令: {' '.join(cmd[:6])} ...")
-    print(f"  (完整命令已隐藏URL)")
-    
     try:
         start_time = time.time()
-        result = subprocess.run(
+        proc = subprocess.run(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             timeout=timeout
         )
-        duration = time.time() - start_time
+        result['duration'] = time.time() - start_time
+        result['return_code'] = proc.returncode
         
-        print(f"\n  ⏱️  FFmpeg执行耗时: {duration:.2f}秒")
-        print(f"  📤 返回码: {result.returncode}")
+        if proc.returncode != 0:
+            result['failure_reason'] = f"返回码 {proc.returncode}"
+            return result
         
-        stderr = result.stderr
+        stderr = proc.stderr
         
-        # 提取视频流信息
-        video_lines = [line for line in stderr.split('\n') if 'Stream #' in line and 'Video:' in line]
-        
+        # 解析视频流
+        video_lines = [l for l in stderr.split('\n') if 'Stream #' in l and 'Video:' in l]
         if not video_lines:
-            print(f"  ❌ 无法解析Video轨道元数据")
-            # 打印部分stderr帮助诊断
-            relevant_lines = [l for l in stderr.split('\n') if 'Error' in l or 'error' in l or 'Stream' in l]
-            if relevant_lines:
-                print(f"\n  📋 相关错误信息:")
-                for line in relevant_lines[:10]:
-                    print(f"    {line.strip()}")
-            return False
+            result['failure_reason'] = "无法解析Video轨道元数据"
+            return result
         
-        video_line = video_lines[0]
-        print(f"\n  📹 视频流信息: {video_line.strip()}")
-        
-        # 解析分辨率
-        res_match = re.search(r'(\d{3,4})x(\d{3,4})', video_line)
+        # 分辨率
+        res_match = re.search(r'(\d{3,4})x(\d{3,4})', video_lines[0])
         if res_match:
-            width = int(res_match.group(1))
-            height = int(res_match.group(2))
-            print(f"  📐 分辨率: {width}x{height}")
-            
-            if height < HKTW_CONFIG['min_height']:
-                print(f"  ❌ 分辨率过低 ({height}p < {HKTW_CONFIG['min_height']}p)")
-                return False
-            else:
-                print(f"  ✅ 分辨率合格 ({height}p >= {HKTW_CONFIG['min_height']}p)")
-        else:
-            print(f"  ⚠️ 无法解析分辨率")
-            width = height = 0
+            result['width'] = int(res_match.group(1))
+            result['height'] = int(res_match.group(2))
         
-        # 解码速率检查
+        # 🔴 核心：4K分辨率检查
+        if category == "4K超清":
+            if result['height'] < 2160:
+                result['failure_reason'] = f"归类为4K但分辨率仅{result['height']}p（要求≥2160p）"
+                return result
+        else:
+            if result['height'] < HKTW_CONFIG['min_height']:
+                result['failure_reason'] = f"分辨率 {result['height']}p < {HKTW_CONFIG['min_height']}p"
+                return result
+        
+        # 解码速率
         speed_matches = re.findall(r'speed=\s*([\d\.]+)x', stderr)
         if speed_matches:
-            final_speed = float(speed_matches[-1])
-            print(f"  ⚡ 解码速率: {final_speed}x")
-            
+            result['decode_speed'] = float(speed_matches[-1])
             if not HKTW_CONFIG.get('allow_low_ratio', False):
-                if final_speed < HKTW_CONFIG['min_speed_ratio']:
-                    print(f"  ❌ 解码速率过低 ({final_speed}x < {HKTW_CONFIG['min_speed_ratio']}x)")
-                    return False
-            print(f"  ✅ 解码速率检查通过 (宽松模式: {HKTW_CONFIG.get('allow_low_ratio', False)})")
-        else:
-            print(f"  ⚠️ 未检测到解码速率信息")
+                if result['decode_speed'] < HKTW_CONFIG['min_speed_ratio']:
+                    result['failure_reason'] = f"解码速率 {result['decode_speed']}x < {HKTW_CONFIG['min_speed_ratio']}x"
+                    return result
         
         # 帧检查
         if HKTW_CONFIG.get('strict_frame_check', True):
             if "frame=0" in stderr or "frame= " not in stderr:
-                print(f"  ❌ 黑屏或无有效帧输出")
-                return False
-            print(f"  ✅ 帧检查通过")
-        else:
-            print(f"  ⚠️ 帧检查已跳过 (宽松模式)")
+                result['failure_reason'] = "黑屏或无有效帧"
+                return result
+            result['has_frames'] = True
         
-        # 僵尸错误检查
+        # 僵尸错误
         if HKTW_CONFIG.get('strict_zombie_check', True):
             zombie_keywords = {
                 "PPS id out of range": "NAL控制集错误",
@@ -507,173 +464,327 @@ def step5_ffmpeg_audit(url):
                 "Could not find ref with POC": "参考帧丢失",
                 "corrupt decoded frame": "画面损坏"
             }
-            found_zombie = False
             for kw, desc in zombie_keywords.items():
                 if kw in stderr:
-                    print(f"  ❌ 致命解码错误: {desc}")
-                    found_zombie = True
-            if not found_zombie:
-                print(f"  ✅ 无致命解码错误")
-            else:
-                return False
-        else:
-            print(f"  ⚠️ 僵尸错误检查已跳过 (宽松模式)")
+                    result['zombie_errors'].append(desc)
+            if result['zombie_errors']:
+                result['failure_reason'] = f"致命解码错误: {result['zombie_errors']}"
+                return result
         
         # 黑边检查
         crop_matches = re.findall(r'crop=(\d+):(\d+):(\d+):(\d+)', stderr)
-        if crop_matches and width > 0 and height > 0:
+        if crop_matches and result['width'] > 0:
             last_crop = crop_matches[-1]
-            crop_w, crop_h = int(last_crop[0]), int(last_crop[1])
-            border_w = width - crop_w
-            border_h = height - crop_h
+            result['crop_w'] = int(last_crop[0])
+            result['crop_h'] = int(last_crop[1])
+            result['border_w'] = result['width'] - result['crop_w']
+            result['border_h'] = result['height'] - result['crop_h']
+            
             max_border = HKTW_CONFIG.get('max_black_border', 60)
-            
-            print(f"  🖼️  有效画面: {crop_w}x{crop_h}")
-            print(f"  ⬛ 黑边: 水平{border_w}px, 垂直{border_h}px")
-            
-            if border_w > max_border or border_h > max_border:
-                print(f"  ❌ 黑边过大 (>{max_border}像素)")
-                return False
-            else:
-                print(f"  ✅ 黑边在合理范围内")
-        else:
-            print(f"  ℹ️  未检测到黑边信息或无法计算")
+            if result['border_w'] > max_border or result['border_h'] > max_border:
+                result['failure_reason'] = f"黑边过大 (水平{result['border_w']}px, 垂直{result['border_h']}px > {max_border}px)"
+                return result
         
-        print(f"\n  ✅ FFmpeg审计通过!")
-        return True
+        result['passed'] = True
         
     except subprocess.TimeoutExpired:
-        print(f"  ❌ FFmpeg执行超时 (>{timeout}秒)")
-        return False
+        result['failure_reason'] = f"FFmpeg超时 (>{timeout}秒)"
     except FileNotFoundError:
-        print(f"  ❌ 找不到FFmpeg: {ffmpeg_bin}")
-        return False
+        result['failure_reason'] = f"找不到FFmpeg: {ffmpeg_bin}"
     except Exception as e:
-        print(f"  ❌ FFmpeg执行异常: {type(e).__name__} - {e}")
-        return False
+        result['failure_reason'] = f"{type(e).__name__}: {e}"
+    
+    return result
 
 
-def diagnose_single_url(url, channel_name=None):
-    """
-    对单个直播链接进行完整诊断
-    """
-    print("\n" + "🔍" * 40)
-    print("  港台直播源单链接深度诊断工具")
-    print("🔍" * 40)
+def diagnose_channel(channel):
+    """对单个频道执行完整诊断"""
+    url = channel['url']
+    raw_name = channel['raw_name']
     
-    print(f"\n📡 目标URL: {url}")
-    if channel_name:
-        print(f"📺 频道名称: {channel_name}")
-    
-    # 打印配置
-    print_config()
-    
-    # 诊断结果汇总
-    results = {
-        "url": url,
-        "steps": {},
-        "passed": False,
-        "final_name": None
+    result = {
+        'raw_name': raw_name,
+        'url': url,
+        'steps': [],
+        'final_passed': False,
+        'final_name': '',
+        'final_category': ''
     }
     
-    # 第1步：频道名称检查
-    name, reason = step1_check_channel_name(url, channel_name)
-    results["steps"]["名称检查"] = {"passed": name is not None, "name": name, "reason": reason}
-    if not name:
-        print(f"\n❌ 诊断终止: {reason}")
-        return results
+    # Step 1: 名称检查
+    step1 = check_channel_name(raw_name, url)
+    result['steps'].append(step1)
     
-    results["final_name"] = name
+    if not step1['passed']:
+        result['final_passed'] = False
+        return result
     
-    # 第2步：DNS解析
-    ip = step2_dns_resolve(url)
-    results["steps"]["DNS解析"] = {"passed": ip is not None, "ip": ip}
+    result['final_name'] = step1['cleaned_name']
+    result['final_category'] = "4K超清" if "4K" in raw_name.upper() else "港台频道"
     
-    # 第3步：基础连通性
-    connectivity = step3_basic_connectivity(url)
-    results["steps"]["基础连通性"] = {"passed": connectivity}
-    if not connectivity:
-        print(f"\n❌ 诊断终止: 基础连通性失败")
-        return results
+    # Step 2: DNS解析
+    step2 = dns_resolve(url)
+    result['steps'].append(step2)
     
-    # 第4步：稳定性测速
-    stable, speed, jitter = step4_stability_check(url)
-    results["steps"]["稳定性测速"] = {
-        "passed": stable,
-        "speed_kbps": speed / 1024,
-        "jitter": jitter
-    }
-    if not stable:
-        print(f"\n❌ 诊断终止: 稳定性测速未通过")
-        return results
+    # Step 3: 基础连通性
+    step3 = basic_connectivity(url)
+    result['steps'].append(step3)
     
-    # 第5步：FFmpeg审计
-    ffmpeg_pass = step5_ffmpeg_audit(url)
-    results["steps"]["FFmpeg审计"] = {"passed": ffmpeg_pass}
+    if not step3['passed']:
+        result['final_passed'] = False
+        return result
     
-    results["passed"] = ffmpeg_pass
+    # Step 4: 稳定性测速
+    step4 = stability_check(url)
+    result['steps'].append(step4)
     
-    # 最终结果
-    print_separator("📊 诊断结果汇总")
-    print(f"\n  频道名称: {results['final_name']}")
-    print(f"  URL: {url}")
-    print(f"\n  各步骤结果:")
-    for step_name, step_result in results["steps"].items():
-        status = "✅ 通过" if step_result["passed"] else "❌ 失败"
-        print(f"    {step_name}: {status}")
+    if not step4['passed']:
+        result['final_passed'] = False
+        return result
     
-    print(f"\n  🏆 最终判定: {'✅ 通过' if results['passed'] else '❌ 未通过'}")
+    # Step 5: FFmpeg审计（传入category用于4K检查）
+    step5 = ffmpeg_audit(url, result['final_category'])
+    result['steps'].append(step5)
     
-    if not results["passed"]:
-        print(f"\n  💡 失败原因分析:")
-        for step_name, step_result in results["steps"].items():
-            if not step_result["passed"]:
-                if step_name == "名称检查":
-                    print(f"    - 名称检查: {step_result.get('reason', '未知')}")
-                elif step_name == "DNS解析":
-                    print(f"    - DNS解析失败，可能是域名不可达或DNS服务器问题")
-                elif step_name == "基础连通性":
-                    print(f"    - 基础连通性失败，服务器可能不可达或端口被封")
-                elif step_name == "稳定性测速":
-                    print(f"    - 速度: {step_result.get('speed_kbps', 0):.2f}KB/s")
-                    print(f"    - 抖动: {step_result.get('jitter', 0):.2f}秒")
-                    print(f"    - 可能原因: 跨境带宽不足或服务器限速")
-                elif step_name == "FFmpeg审计":
-                    print(f"    - 视频流质量问题，可能是编码损坏或分辨率过低")
+    result['final_passed'] = step5['passed']
     
-    return results
+    return result
+
+
+def write_report(all_results, config):
+    """写入详细报告"""
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    
+    # 1. 详细JSON报告
+    json_file = f"hktw_batch_report_{timestamp}.json"
+    with open(json_file, 'w', encoding='utf-8') as f:
+        json.dump({
+            'config': {k: v for k, v in config.items() if not k.startswith('_')},
+            'total': len(all_results),
+            'passed': sum(1 for r in all_results if r['final_passed']),
+            'failed': sum(1 for r in all_results if not r['final_passed']),
+            'results': all_results
+        }, f, indent=2, ensure_ascii=False, default=str)
+    
+    # 2. 可读文本报告
+    txt_file = f"hktw_batch_report_{timestamp}.txt"
+    with open(txt_file, 'w', encoding='utf-8') as f:
+        f.write("=" * 80 + "\n")
+        f.write("  港台直播源批量质量审计报告\n")
+        f.write(f"  生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write("=" * 80 + "\n\n")
+        
+        # 配置摘要
+        f.write("📋 当前配置参数:\n")
+        f.write(f"  速度阈值: 生死线={config['min_speed_dead']/1024:.2f}KB/s, 正常={config['min_speed_normal']/1024:.2f}KB/s\n")
+        f.write(f"  抖动阈值: 生死线={config['max_jitter_dead']}s, 正常={config['max_jitter_normal']}s\n")
+        f.write(f"  最低分辨率: {config['min_height']}p\n")
+        f.write(f"  超时设置: 视频={config['timeout_video']}s, 测速={config['timeout_stable']}s, 连接={config['connect_timeout_basic']}s\n")
+        f.write(f"  宽松策略: 允许低解码率={config['allow_low_ratio']}, 严格帧检查={config['strict_frame_check']}, 严格僵尸检查={config['strict_zombie_check']}\n")
+        f.write("\n" + "=" * 80 + "\n\n")
+        
+        # 总体统计
+        passed = [r for r in all_results if r['final_passed']]
+        failed = [r for r in all_results if not r['final_passed']]
+        
+        f.write(f"📊 总体统计:\n")
+        f.write(f"  总频道数: {len(all_results)}\n")
+        f.write(f"  ✅ 通过: {len(passed)}\n")
+        f.write(f"  ❌ 未通过: {len(failed)}\n\n")
+        
+        # 失败原因统计
+        f.write("🔍 失败原因分布:\n")
+        fail_reasons = {}
+        fail_steps = {}
+        for r in failed:
+            for step in r['steps']:
+                if not step['passed']:
+                    reason = step.get('failure_reason', step.get('reason', step.get('error', '未知')))
+                    fail_reasons[reason] = fail_reasons.get(reason, 0) + 1
+                    fail_steps[step['step']] = fail_steps.get(step['step'], 0) + 1
+                    break
+        
+        f.write("\n  按步骤分布:\n")
+        for step, count in sorted(fail_steps.items(), key=lambda x: -x[1]):
+            f.write(f"    {step}: {count}条\n")
+        
+        f.write("\n  按具体原因分布:\n")
+        for reason, count in sorted(fail_reasons.items(), key=lambda x: -x[1])[:20]:
+            f.write(f"    [{count}条] {reason}\n")
+        
+        f.write("\n" + "=" * 80 + "\n\n")
+        
+        # 详细结果
+        f.write("📝 详细结果:\n\n")
+        
+        for i, r in enumerate(all_results, 1):
+            status = "✅ 通过" if r['final_passed'] else "❌ 未通过"
+            f.write(f"[{i}/{len(all_results)}] {status}\n")
+            f.write(f"  原始名称: {r['raw_name']}\n")
+            f.write(f"  最终名称: {r['final_name']}\n")
+            f.write(f"  分类: {r['final_category']}\n")
+            f.write(f"  URL: {r['url']}\n")
+            
+            for step in r['steps']:
+                step_status = "✅" if step['passed'] else "❌"
+                f.write(f"  {step_status} {step['step']}: ")
+                
+                if step['step'] == '名称检查':
+                    f.write(f"{step.get('reason', '')} → {step.get('cleaned_name', '')}")
+                elif step['step'] == 'DNS解析':
+                    f.write(f"{step.get('hostname', '')} → {step.get('ip', '')} ({step.get('resolve_time_ms', 0):.0f}ms)")
+                elif step['step'] == '基础连通性':
+                    f.write(f"HTTP {step.get('http_status', 0)} | {step.get('note', step.get('error', ''))}")
+                elif step['step'] == '稳定性测速':
+                    if step.get('avg_speed_kbps', 0) > 0:
+                        f.write(f"速度={step.get('avg_speed_kbps', 0):.2f}KB/s | 抖动={step.get('max_jitter', 0):.2f}s")
+                    else:
+                        f.write(f"{step.get('failure_reason', '')}")
+                elif step['step'] == 'FFmpeg审计':
+                    if step.get('height', 0) > 0:
+                        f.write(f"分辨率={step.get('width', 0)}x{step.get('height', 0)} | 解码速率={step.get('decode_speed', 0)}x")
+                    if not step['passed']:
+                        f.write(f" | 失败原因: {step.get('failure_reason', '')}")
+                
+                f.write("\n")
+            
+            f.write("\n")
+    
+    # 3. 通过列表（可直接用作 gt.m3u）
+    passed_file = f"hktw_passed_{timestamp}.m3u"
+    with open(passed_file, 'w', encoding='utf-8') as f:
+        f.write("#EXTM3U\n")
+        f.write(f"# 港台频道质量审计通过列表 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        for r in passed:
+            f.write(f'#EXTINF:-1 group-title="{r["final_category"]}",{r["final_name"]}\n')
+            f.write(f'{r["url"]}\n')
+    
+    # 4. 失败列表（便于分析）
+    failed_file = f"hktw_failed_{timestamp}.txt"
+    with open(failed_file, 'w', encoding='utf-8') as f:
+        f.write(f"港台频道失败列表 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write("=" * 80 + "\n\n")
+        for r in failed:
+            fail_step = ""
+            fail_reason = ""
+            for step in r['steps']:
+                if not step['passed']:
+                    fail_step = step['step']
+                    fail_reason = step.get('failure_reason', step.get('reason', step.get('error', '未知')))
+                    break
+            f.write(f"名称: {r['raw_name']} → {r['final_name']}\n")
+            f.write(f"URL: {r['url']}\n")
+            f.write(f"失败步骤: {fail_step}\n")
+            f.write(f"失败原因: {fail_reason}\n")
+            f.write("-" * 40 + "\n")
+    
+    return json_file, txt_file, passed_file, failed_file
 
 
 def main():
     """主函数"""
     print("\n" + "🚀" * 40)
-    print("  港台直播源质量审计 - 单链接调试工具")
+    print("  港台直播源批量质量审计调试工具")
     print("🚀" * 40)
     
-    # 测试URL - 可以替换为任何港台直播源
-    test_url = input("\n请输入要诊断的港台直播源URL: ").strip()
+    # 读取 hk.m3u
+    input_file = "hk.m3u"
+    if not os.path.exists(input_file):
+        print(f"\n❌ 找不到 {input_file} 文件！")
+        print("请将港台频道数据保存为 hk.m3u 放在当前目录下。")
+        return
     
-    if not test_url:
-        # 默认测试URL
-        test_url = "http://example.com/hktw_stream.m3u8"
-        print(f"使用默认测试URL: {test_url}")
+    channels = parse_hk_m3u(input_file)
+    print(f"\n📂 已加载 {len(channels)} 条港台频道")
     
-    channel_name = input("请输入频道名称 (可选): ").strip() or None
+    if not channels:
+        print("❌ 未解析到任何频道，请检查 hk.m3u 格式。")
+        return
     
-    # 执行诊断
-    results = diagnose_single_url(test_url, channel_name)
+    # 打印配置
+    print("\n📋 当前配置:")
+    print(f"  速度: 生死线={HKTW_CONFIG['min_speed_dead']/1024:.2f}KB/s, 正常={HKTW_CONFIG['min_speed_normal']/1024:.2f}KB/s")
+    print(f"  抖动: 生死线={HKTW_CONFIG['max_jitter_dead']}s, 正常={HKTW_CONFIG['max_jitter_normal']}s")
+    print(f"  最低分辨率: {HKTW_CONFIG['min_height']}p")
+    print(f"  超时: 视频={HKTW_CONFIG['timeout_video']}s, 测速={HKTW_CONFIG['timeout_stable']}s")
     
-    # 导出结果
-    export = input("\n是否导出诊断报告为JSON? (y/n): ").strip().lower()
-    if export == 'y':
-        report_file = f"hktw_diagnose_{int(time.time())}.json"
-        with open(report_file, 'w', encoding='utf-8') as f:
-            json.dump(results, f, indent=2, ensure_ascii=False)
-        print(f"✅ 报告已保存至: {report_file}")
+    # 确认开始
+    print(f"\n⚠️  将对 {len(channels)} 条频道进行完整检测，预计耗时较长。")
+    confirm = input("确认开始? (y/n): ").strip().lower()
+    if confirm != 'y':
+        print("已取消。")
+        return
     
-    print("\n" + "✅" * 40)
-    print("  诊断完成!")
-    print("✅" * 40)
+    # 执行批量检测
+    all_results = []
+    start_time = time.time()
+    
+    for i, ch in enumerate(channels, 1):
+        print(f"\n[{i}/{len(channels)}] 检测: {ch['raw_name'][:40]}...")
+        
+        try:
+            result = diagnose_channel(ch)
+            all_results.append(result)
+            
+            status = "✅" if result['final_passed'] else "❌"
+            print(f"  {status} {'通过' if result['final_passed'] else '未通过'}")
+            
+            # 显示失败原因
+            if not result['final_passed']:
+                for step in result['steps']:
+                    if not step['passed']:
+                        reason = step.get('failure_reason', step.get('reason', step.get('error', '')))
+                        print(f"     失败于 {step['step']}: {reason[:80]}")
+                        break
+        
+        except Exception as e:
+            print(f"  ❌ 检测异常: {e}")
+            all_results.append({
+                'raw_name': ch['raw_name'],
+                'url': ch['url'],
+                'steps': [],
+                'final_passed': False,
+                'final_name': ch['raw_name'],
+                'final_category': '港台频道',
+                'error': str(e)
+            })
+    
+    total_time = time.time() - start_time
+    
+    # 统计
+    passed = [r for r in all_results if r['final_passed']]
+    failed = [r for r in all_results if not r['final_passed']]
+    
+    print(f"\n📊 检测完成!")
+    print(f"  总耗时: {total_time/60:.1f}分钟")
+    print(f"  总频道: {len(all_results)}")
+    print(f"  ✅ 通过: {len(passed)}")
+    print(f"  ❌ 未通过: {len(failed)}")
+    
+    # 写入报告
+    print(f"\n📝 正在生成报告...")
+    json_file, txt_file, passed_file, failed_file = write_report(all_results, HKTW_CONFIG)
+    
+    print(f"\n📁 报告文件:")
+    print(f"  详细JSON: {json_file}")
+    print(f"  可读文本: {txt_file}")
+    print(f"  通过列表: {passed_file}")
+    print(f"  失败列表: {failed_file}")
+    
+    # 失败原因Top5
+    fail_reasons = {}
+    for r in failed:
+        for step in r['steps']:
+            if not step['passed']:
+                reason = step.get('failure_reason', step.get('reason', step.get('error', '未知')))
+                fail_reasons[reason] = fail_reasons.get(reason, 0) + 1
+                break
+    
+    print(f"\n🔍 失败原因 Top 5:")
+    for reason, count in sorted(fail_reasons.items(), key=lambda x: -x[1])[:5]:
+        print(f"  [{count}条] {reason[:100]}")
+    
+    print(f"\n✅ 批量调试完成！请查看报告文件分析数据。")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,29 @@
+{
+  "urls": [
+    "https://live06.zuqiu106.com/live/66619329.m3u8",
+    "https://live06.zuqiu106.com/live/36571087.m3u8",
+    "https://live06.zuqiu106.com/live/52765809.m3u8",
+    "https://live06.zuqiu106.com/live/39492499.m3u8",
+    "https://live06.zuqiu106.com/live/15781071.m3u8",
+    "https://live06.zuqiu106.com/live/47337902.m3u8",
+    "https://live06.zuqiu106.com/live/95005714.m3u8",
+    "https://live06.zuqiu106.com/live/99354599.m3u8",
+    "https://live06.zuqiu106.com/live/03735870.m3u8",
+    "https://live06.zuqiu106.com/live/95826850.m3u8"
+  ],
+  "domains": [
+    "live06.zuqiu106.com"
+  ],
+  "patterns": [
+    "/live/66619329.m3u8",
+    "/live/36571087.m3u8",
+    "/live/52765809.m3u8",
+    "/live/39492499.m3u8",
+    "/live/15781071.m3u8",
+    "/live/47337902.m3u8",
+    "/live/95005714.m3u8",
+    "/live/99354599.m3u8",
+    "/live/03735870.m3u8",
+    "/live/95826850.m3u8"
+  ]
+}

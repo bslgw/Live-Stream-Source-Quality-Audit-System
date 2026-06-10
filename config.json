@@ -1,46 +1,551 @@
 {
-  "MAINLAND_CONFIG": {
-    "timeout_video": 20.0,
-    "timeout_stable": 5.0,
-    "connect_timeout_basic": 6,
-    "read_timeout_basic": 4,
-    "min_speed_dead": 102400,
-    "max_jitter_dead": 3.0,
-    "min_speed_normal": 584320,
-    "max_jitter_normal": 2.0,
-    "min_height": 720,
-    "min_speed_ratio": 0.8,
-    
-    "connect_timeout_stable": 5,
-    "allow_low_ratio": false,
-    "strict_zombie_check": true,
-    "strict_frame_check": true,
-    "max_black_border": 24,
-    "min_speed_4k": 307200,
-    "max_jitter_4k": 2.5
-},
-
-"HKTW_CONFIG": {
-    "timeout_video": 75,
-    "timeout_stable": 25,
-    "connect_timeout_basic": 40,     
-    "read_timeout_basic": 40,        
-    
-    "min_speed_dead": 120,
-    "max_jitter_dead": 3.0,
-    "min_speed_normal": 1432,
-    "max_jitter_normal": 20.0,
-    "min_height": 288,
-    "min_speed_ratio": 0.08,
-    
-    "connect_timeout_stable": 15,
+  "CONFIG_SOURCES": [
+    "https://gh-proxy.com/raw.githubusercontent.com/alenin-zhang/IPTV/master/lenin.txt",
+    "https://raw.githubusercontent.com/mytv-android/China-TV-Live-M3U8/refs/heads/main/iptv.m3u",
+    "https://raw.githubusercontent.com/hujingguang/ChinaIPTV/refs/heads/main/cnTV_AutoUpdate.m3u8",
+    "https://iptv-org.github.io/iptv/languages/zho.m3u",
+    "https://raw.githubusercontent.com/suxuang/myIPTV/main/ipv4.m3u",
+    "https://raw.githubusercontent.com/Jsnzkpg/Jsnzkpg/Jsnzkpg/Jsnzkpg1.m3u",
+    "http://iptv.cqshushu.com/index.php?s=X4tQajuR-R2dtB3IcjLAuw&t=multicast&channels=1&format=m3u",
+    "https://raw.githubusercontent.com/best-fan/iptv-sources/refs/heads/main/cn_all.m3u8",
+    "https://raw.githubusercontent.com/mzky/checklist/master/itvlist.m3u",
+    "https://taoiptv.com/lives/51025.txt?token=f488e0a91ee68cbd",
+    "https://taoiptv.com/lives/44025.txt?token=f488e0a91ee68cbd",
+    "https://taoiptv.com/lives/44023.txt?token=f488e0a91ee68cbd",
+    "https://taoiptv.com/lives/41024.txt?token=f488e0a91ee68cbd",
+    "https://taoiptv.com/lives/37024.txt?token=f488e0a91ee68cbd",
+    "https://raw.githubusercontent.com/fafa002/yf2025/refs/heads/main/yiyifafa.txt",
+    "https://d.kstore.dev/download/8344/1电信酒店.txt",
+    "https://40.tv1288.xyz/",
+    "https://php.946985.filegear-sg.me/jackTV.m3u",
+    "http://iptv.4666888.xyz/FYTV.txt",
+    "https://gh-proxy.com/raw.githubusercontent.com/Jsnzkpg/Jsnzkpg/Jsnzkpg/Jsnzkpg1.m3u",
+    "http://ge.html-5.me//ii/黄蚂蚁先锋推流源.txt",
+    "https://gitee.com/OscarWilde/itv/raw/master/tv.txt",
+    "https://t.freetv.fun/m3u/hong_kong.txt",
+    "https://t.freetv.fun/m3u/taiwan.txt",
+    "https://live.zbds.top/tv/iptv4.txt"
+  ],
+  "CORRECTION_DB": [
+    {
+      "action": "discard",
+      "match": "https://chibrics.mediacdn.ru/cdn/brics/chinese/playlist.m3u8"
+    },
+    {
+      "action": "rename",
+      "match": "https://t.freetv.fun/live/xiang-jiao-2.ts",
+      "value": "香蕉台"
+    },
+    {
+      "action": "rename",
+      "match": "http://cdn6.163189.xyz/163189/tvb1",
+      "value": "TVB1"
+    },
+    {
+      "action": "rename",
+      "match": "https://t.freetv.fun/live/wei-lai-jing-cai.m3u8",
+      "value": "纬来精彩"
+    },
+    {
+      "action": "rename",
+      "match": "https://t.freetv.fun/live/fei-cui-yi-tai.m3u8",
+      "value": "翡翠1台"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/jing-tian-ri-ben.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "http://106.116.126.74"
+    },
+    {
+      "action": "discard",
+      "match": "http://106.116.242.184:9999"
+    },
+    {
+      "action": "discard",
+      "match": "http://111.221.137.234"
+    },
+    {
+      "action": "discard",
+      "match": "https://fm995.ddns.net/hls1/fm995.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/jing-tian-qia-tong.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/jing-tian-ri-ben.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/discovery-kids.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/discovery-id.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/discovery-theater.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/discovery-world.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://247wlive.foxweather.com/stream/index_1280x720.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "http://conecdg.me:80/Andrielly.Silva/Br131221/3932771"
+    },
+    {
+      "action": "rename",
+      "match": "http://r.jdshipin.com/CkuBd",
+      "value": "无线新闻"
+    },
+    {
+      "action": "rename",
+      "match": "http://cdn6.163189.xyz/163189/",
+      "value": "TVBJ1"
+    },
+    {
+      "action": "discard",
+      "match": "http://o11.163189.xyz/stream/tvb/tvbp/"
+    },
+    {
+      "action": "discard",
+      "match": "https://hls.163189.xyz/163189/a2beac471af96802"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/atv-plus-1.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/etv-plus-720p.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/tvb-plus-5.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/etv-plus-1.m3u8"
+    },
+    {
+      "action": "rename",
+      "match": "https://4gtv.158.qzz.io/163189/1e0bdf17-436e-40d9-b442-ca3e2bf3d1db/",
+      "value": "TVBS欢乐台"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/tvbs-asia.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/tvbshuan-le-1.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/tvbsjing-cai-1.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://4g.158.qzz.io/163189/1bcf344d4a0ea28c"
+    },
+    {
+      "action": "rename",
+      "match": "http://61.221.215.25:8800/hls/9/index.m3u8",
+      "value": "TVBS新闻"
+    },
+    {
+      "action": "rename",
+      "match": "https://t.freetv.fun/live/tvbs-1.m3u8",
+      "value": "TVBS新闻"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/tvbsya-zhou-1-1.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/tvbsya-zhou-5.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/tvbsya-zhou-2-1.m3u8"
+    },
+    {
+      "action": "rename",
+      "match": "https://t.freetv.fun/live/tvbsya-zhou-6.m3u8",
+      "value": "TVBS欢乐谷"
+    },
+    {
+      "action": "rename",
+      "match": "https://t.freetv.fun/live/tvbsya-zhou-3.m3u8",
+      "value": "TVBS欢乐谷"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/tvbsya-zhou-tai.m3u8"
+    },
+    {
+      "action": "rename",
+      "match": "https://t.freetv.fun/live/tvbsya-zhou-7.m3u8",
+      "value": "TVBS欢乐谷"
+    },
+    {
+      "action": "rename",
+      "match": "https://t.freetv.fun/live/tvbsya-zhou-6-1.m3u8",
+      "value": "TVBS欢乐谷"
+    },
+    {
+      "action": "rename",
+      "match": "http://php.jdshipin.com/TVOD/iptv.php?id=tvbylxw",
+      "value": "TVB娱乐新闻"
+    },
+    {
+      "action": "discard",
+      "match": "http://cdn9.163189.xyz/smt1.1.php?id=inews_twn"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/tvbxing-he-1-1.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/tvbxing-he-1.m3u8"
+    },
+    {
+      "action": "rename",
+      "match": "http://php.jdshipin.com/TVOD/iptv.php?id=xinghe",
+      "value": "TVB星河"
+    },
+    {
+      "action": "discard",
+      "match": "https://cdn.163189.xyz/163189/viu"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/san-li-xin-wen-inews.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "http://61.221.215.25:8800/hls/41/index.m3u8"
+    },
+    {
+      "action": "rename",
+      "match": "https://4gtv.158.qzz.io/163189/6fb8aec9-e4b2-4bed-8832-b5e9cce4a830/",
+      "value": "三立INEWS"
+    },
+    {
+      "action": "discard",
+      "match": "https://4gtv.158.qzz.io/163189/3d610e6d-aa4f-48bf-8516-eb823977d10f/"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/dong-sen-mei-zhou-xin-wen-tai.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "http://211.72.174.95:8138/0.ts"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/dong-sen-xin-wen.ts"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/dong-sen-mei-zhou.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/dong-sen-mei-zhou-2-1.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/dong-sen-mei-zhou-1.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/dong-sen-mei-zhou-2.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/dong-sen-mei-zhou-xin-wen.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/dong-sen-mei-zhou-wei-shi.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t33.cdn2020.com"
+    },
+    {
+      "action": "discard",
+      "match": "https://live.ottiptv.cc/"
+    },
+    {
+      "action": "discard",
+      "match": "https://www.goodiptv.club"
+    },
+    {
+      "action": "discard",
+      "match": "http://rihou.cc:555"
+    },
+    {
+      "action": "discard",
+      "match": "http://s.rocketdns.info"
+    },
+    {
+      "action": "discard",
+      "match": "http://zmgd.zyrnet.com:8888/hls/110/index.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "http://122.224.58.42:85/tsfile/live/1022_1.m3u8?key=txiptv&playlive=1&authid=0"
+    },
+    {
+      "action": "discard",
+      "match": "http://122.152.202.33/s/81a8a44f/index.m3u8?id=fhhk"
+    },
+    {
+      "action": "discard",
+      "match": "https://hls.163189.xyz/163189/d6a00a3009bf239e"
+    },
+    {
+      "action": "rename",
+      "match": "http://61.221.215.25:8800/hls/47/index.m3u8",
+      "value": "中天娱乐"
+    },
+    {
+      "action": "discard",
+      "match": "https://d1jzu95oc8fgt3.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-zyqcok4bm0lgq/FOX_Sports.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "http://61.221.215.25:8800/hls/47/index.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "http://beishan008.asuscomm.com:8889/bysid/96.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "http://php.jdshipin.com:8880/smt.php?id=Xinhe"
+    },
+    {
+      "action": "discard",
+      "match": "http://58.46.69.228:8188/udp/239.76.253.134:9000"
+    },
+    {
+      "action": "discard",
+      "match": "http://58.46.69.228:8188/udp/239.76.246.134:1234"
+    },
+    {
+      "action": "discard",
+      "match": "https://cdn6.163189.xyz/163189/fhzw"
+    },
+    {
+      "action": "discard",
+      "match": "http://120.198.95.220:9901/tsfile/live/1036_1.m3u8?key=txiptv&playlive=1&down=1"
+    },
+    {
+      "action": "discard",
+      "match": "http://108.181.20.255"
+    },
+    {
+      "action": "discard",
+      "match": "http://cdns.jp-primehome.com:8000/zhongying/live/playlist.m3u8?cid=cs08&isp=10&bind=0&uin=159413&playseek="
+    },
+    {
+      "action": "discard",
+      "match": "https://d1jzu95oc8fgt3.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-zyqcok4bm0lgq/FOX_Sports.m3u8"
+    },
+    {
+      "action": "discard",
+      "match": "https://t.freetv.fun/live/discovery-dtx.php"
+    },
+    {
+      "action": "discard",
+      "match": "http://23.237.104.106"
+    },
+    {
+      "action": "discard",
+      "match": "http://220.135.64.124:5050/ofiii204/index.m3u8?proxy=true"
+    },
+    {
+      "action": "discard",
+      "match": "http://220.135.64.124:5050/of-4gtv-4gtv156/index.m3u8?proxy=true"
+    },
+    {
+      "action": "rename",
+      "match": "https://cdn12.178.indevs.in/163189/2973b910e7719c08",
+      "value": "公视戏剧台"
+    },
+    {
+      "action": "rename",
+      "match": "http://cdn6.163189.xyz/163189/as",
+      "value": "澳门卫视"
+    },
+    {
+      "action": "discard",
+      "match": "http://61.221.215.25:8800/hls/48/index.m3u8"
+    },
+    {
+      "match": "https://4gtv.158.qzz.io/163189/ac91480e-8572-41b6-af5d-2421f2bf0d78/",
+      "action": "discard"
+    },
+    {
+      "match": "https://4gtv.158.qzz.io/163189/cf75a2db-204c-4d68-a959-fd49f0c5f6ad/",
+      "action": "rename",
+      "value": "公视戏剧"
+    },
+    {
+      "match": "https://4gtv.158.qzz.io/163189/acd6cbf9-8405-49c0-bf37-f7c620ccc391/",
+      "action": "rename",
+      "value": "TVBS精采台"
+    },
+    {
+      "match": "https://t.freetv.fun/live/fei-cui-2.m3u8",
+      "action": "discard"
+    },
+    {
+      "match": "https://4gtv.158.qzz.io/163189/acd6cbf9-8405-49c0-bf37-f7c620ccc391/",
+      "action": "rename",
+      "value": "TVBS精采台"
+    },
+    {
+      "match": "http://74.91.26.218:82/live/ctvjd.m3u8",
+      "action": "rename",
+      "value": "中视经典台"
+    },
+    {
+      "match": "http://74.91.26.218:82/live/ctvjc.m3u8",
+      "action": "rename",
+      "value": "中视精采台"
+    },
+    {
+      "match": "http://218.206.193.218:8888/hls/66/index.m3u8",
+      "action": "discard"
+    },
+    {
+      "match": "https://live.264788.xyz/channel/fenghuangweishizixun?streamid=7fb13f400476e75ce6c34d1f40c28473&livekey=01WgOR41rriMmMkzNsd0UoaxJRwetZdxIvtVk",
+      "action": "discard"
+    },
+    {
+      "match": "https://t.freetv.fun/live/feng-huang-zi-xun-6.php",
+      "action": "discard"
+    },
+    {
+      "match": "http://49.234.31.101:7033/tsfile/live/1014_1.m3u8?key=txiptv&playlive=1&authid=0",
+      "action": "discard"
+    },
+    {
+      "match": "http://74.91.26.218:82/live/ctsjy.m3u8",
+      "action": "rename",
+      "value": "华视教育台"
+    },
+    {
+      "match": "http://74.91.26.218:82/live/ttvzh.m3u8",
+      "action": "rename",
+      "value": "台视综合台"
+    },
+    {
+      "match": "http://120.198.95.220:9901/tsfile/live/1043_1.m3u8?key=txiptv&playlive=1&down=1",
+      "action": "discard"
+    },
+    {
+      "match": "https://t.freetv.fun/live/ming-zhu-2.m3u8",
+      "action": "discard"
+    },
+    {
+      "match": "https://cdn12.178.indevs.in/163189/73d93f1c22fa91d7",
+      "action": "rename",
+      "value": "民视戏剧台"
+    },
+    {
+      "match": "https://t.freetv.fun/live/min-shi-tai-wan-2.m3u8",
+      "action": "discard"
+    }
+  ],
+  "CUSTOM_CHANNELS": [
+    {
+      "category": "成人频道",
+      "name": "香蕉台",
+      "url": "https://t.freetv.fun/live/xiang-jiao-2.ts"
+    },
+    {
+      "category": "成人频道",
+      "name": "潘多拉",
+      "url": "https://t.freetv.fun/live/pan-duo-la-1.ts"
+    },
+    {
+      "category": "成人频道",
+      "name": "惊艳台",
+      "url": "https://t.freetv.fun/live/cai-hong.ts"
+    },
+    {
+      "category": "成人频道",
+      "name": "惊艳台",
+      "url": "https://t.freetv.fun/live/liang-yan.ts"
+    },
+    {
+      "category": "港台频道",
+      "name": "东森洋片",
+      "url": "https://cdn.19891230.eu.org/api/ET-Foreign-Movie-Channel/index.m3u8"
+    },
+    {
+      "category": "成人频道",
+      "name": "松视1",
+      "url": "http://15.204.105.50:25461/live/G2s9zK2n9m/xDtwVfWM8T/88.ts"
+    },
+    {
+      "category": "成人频道",
+      "name": "松视2",
+      "url": "http://15.204.105.50:25461/live/G2s9zK2n9m/xDtwVfWM8T/89.ts"
+    },
+    {
+      "category": "成人频道",
+      "name": "潘多拉",
+      "url": "http://15.204.105.50:25461/live/G2s9zK2n9m/xDtwVfWM8T/86.ts"
+    },
+    {
+      "category": "成人频道",
+      "name": "惊艳台",
+      "url": "http://15.204.105.50:25461/live/G2s9zK2n9m/xDtwVfWM8T/85.ts"
+    },
+    {
+      "category": "港台频道",
+      "name": "东森洋片",
+      "url": "https://smt.1678520.xyz/163189/dsyp"
+    }
+  ],
+  "HKTW_CONFIG": {
     "allow_low_ratio": true,
-    "strict_zombie_check": false,
-    "strict_frame_check": false,
+    "connect_timeout_basic": 40,
+    "connect_timeout_stable": 15,
     "max_black_border": 60,
+    "max_jitter_4k": 6.5,
+    "max_jitter_dead": 3,
+    "max_jitter_normal": 10,
+    "min_height": 288,
     "min_speed_4k": 100000,
-    "max_jitter_4k": 6.5
-},
+    "min_speed_dead": 120,
+    "min_speed_normal": 51200,
+    "min_speed_ratio": 0.08,
+    "read_timeout_basic": 40,
+    "strict_frame_check": false,
+    "strict_zombie_check": false,
+    "timeout_stable": 25,
+    "timeout_video": 75
+  },
   "HK_TW_BRANDS": [
     "凤凰",
     "鳳凰",
@@ -86,181 +591,31 @@
     "国家地理",
     "动物星球",
     "VIUTV",
-    "HOY TV"
+    "HOY TV",
+    "HBO 強檔鉅獻",
+    "HBO 原創鉅獻",
+    "HBO 溫馨家庭",
+    "天映",
+    "astro",
+    "IQIYI"
   ],
-  "CONFIG_SOURCES": [
-    "https://ppsll.cc.cd/ppsll",
-    "https://raw.githubusercontent.com/mytv-android/China-TV-Live-M3U8/refs/heads/main/iptv.m3u",
-    "https://raw.githubusercontent.com/hujingguang/ChinaIPTV/refs/heads/main/cnTV_AutoUpdate.m3u8",
-    "https://iptv-org.github.io/iptv/languages/zho.m3u",
-    "https://raw.githubusercontent.com/suxuang/myIPTV/main/ipv4.m3u",
-    "https://raw.githubusercontent.com/Jsnzkpg/Jsnzkpg/Jsnzkpg/Jsnzkpg1.m3u",
-    "http://iptv.cqshushu.com/index.php?s=X4tQajuR-R2dtB3IcjLAuw&t=multicast&channels=1&format=m3u",
-    "https://raw.githubusercontent.com/best-fan/iptv-sources/refs/heads/main/cn_all.m3u8",
-    "https://raw.githubusercontent.com/mzky/checklist/master/itvlist.m3u",
-    "https://taoiptv.com/lives/51025.txt?token=f488e0a91ee68cbd",
-    "https://taoiptv.com/lives/44025.txt?token=f488e0a91ee68cbd",
-    "https://taoiptv.com/lives/44023.txt?token=f488e0a91ee68cbd",
-    "https://taoiptv.com/lives/41024.txt?token=f488e0a91ee68cbd",
-    "https://taoiptv.com/lives/37024.txt?token=f488e0a91ee68cbd",
-    "https://iptv.cqshushu.com/jiekou.php?jk=txt&token=077488b34fd0a84dfc63291d55a153a9"
-  ],
-
-  "CORRECTION_DB": [
-  {
-    "match": "http://rihou.cc:555/tv/",
-    "action": "discard"
-  },
-  {
-    "match": "http://jiange.dns.navy:10001",
-    "action": "discard"
-  },
-  {
-    "match": "http://lbyjlt.vv5678.cn:8880",
-    "action": "discard"
-  },
-  {
-    "match": "http://xhzza.v6.navy:34040",
-    "action": "discard"
-  },
-  {
-    "match": "http://120.87.19.109:80/PLTV/",
-    "action": "discard"
-  },
-  {
-    "match": "http://rrs01.hw.gmcc.net:8088",
-    "action": "discard"
-  },
-  {
-    "match": "http://27.154.99.234:3386/",
-    "action": "discard"
-  },
-  {
-    "match": "http://106.87.50.30:8888",
-    "action": "discard"
-  },
-  {
-    "match": "http://106.116.242.203:9999/rtp",
-    "action": "discard"
-  },
-  {
-    "match": "http://118.251.16.185:8188/udp",
-    "action": "discard"
-  },
-  {
-    "match": "http://111.162.205.209:8686/rtp",
-    "action": "discard"
-  },
-  {
-    "match": "https://live.ottiptv.cc",
-    "action": "discard"
-  },
-  {
-    "match": "https://live.ottiptv.cc/huya",
-    "action": "discard"
-  },
-  {
-    "match": "http://php.jdshipin.com:8880",
-    "action": "discard"
-  },
-  {
-    "match": "https://t26.cdn2020.com/video/m3u8",
-    "action": "discard"
-  },
-  {
-    "match": "https://iptv.catvod.com",
-    "action": "discard"
-  },
-  {
-    "match": "http://38.75.136.137:98/gslb/dsdqca",
-    "action": "discard"
-  },
-  {
-    "match": "http://182.61.15.163:9080",
-    "action": "discard"
-  },
-  {
-    "match": "https://liveh12.vtvprime.vn/",
-    "action": "discard"
-  },
-  {
-    "match": "http://go.bkpcp.top/mg",
-    "action": "discard"
-  },
-  {
-    "match": "http://tvpull.dxhmt.cn:9081/tv",
-    "action": "discard"
-  },
-  {
-    "match": "http://m.061899.xyz/mg/",
-    "action": "discard"
-  },
-  {
-    "match": "https://liveh12.vtvprime.vn/",
-    "action": "discard"
-  },
-  {
-    "match": "http://j.s.bkpcp.top//",
-    "action": "discard"
-  },
-  {
-    "match": "https://live01-cn-ali.zytlka.com/",
-    "action": "discard"
-  },
-  {
-    "match": "http://s.rocketdns.info:8080",
-    "action": "discard"
-  },
-  {
-    "match": "http://bot22.top:19999/udp/",
-    "action": "discard"
-  },
-  {
-    "match": "http://k.061899.xyz",
-    "action": "discard"
-  },
-  {
-    "match": "https://www.goodiptv.club/douyu",
-    "action": "discard"
-  },
-  {
-    "match": "http://81.137.213.119:4203/bysid",
-    "action": "discard"
-  },
-  {
-    "match": "https://live.ottiptv.cc/yy",
-    "action": "discard"
-  },
-  {
-    "match": "https://t33.cdn2020.com/video/m3u8",
-    "action": "discard"
-  },
-  {
-    "match": "/cdnlive/",
-    "action": "discard"
-  },
-  {
-    "match": "http://220.167.170.144:4000/rtp/239.120.1.111:8254",
-    "action": "discard"
-  },
-  {
-    "match": "http://183.164.237.29:8888/rtp/238.1.78.137:6968",
-    "action": "discard"
-  },
-  {
-    "match": "http://129.211.14.102",
-    "action": "discard"
-  },
-  {
-    "match": "https://chibrics.mediacdn.ru/cdn/brics/chinese/playlist.m3u8",
-    "action": "discard"
-  },
-  {
-    "match": "https://t.freetv.fun/live/xiang-jiao-2.ts",
-    "action": "rename",
-    "value": "香蕉台"
+  "MAINLAND_CONFIG": {
+    "allow_low_ratio": false,
+    "connect_timeout_basic": 6,
+    "connect_timeout_stable": 5,
+    "max_black_border": 24,
+    "max_jitter_4k": 2.5,
+    "max_jitter_dead": 2,
+    "max_jitter_normal": 2,
+    "min_height": 720,
+    "min_speed_4k": 307200,
+    "min_speed_dead": 102400,
+    "min_speed_normal": 614400,
+    "min_speed_ratio": 0.8,
+    "read_timeout_basic": 4,
+    "strict_frame_check": true,
+    "strict_zombie_check": true,
+    "timeout_stable": 2,
+    "timeout_video": 20
   }
-]
-  
-  
 }

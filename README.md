@@ -1,6 +1,10 @@
 # 📡 直播源质量审计
 
-文件说明
+# 运行环境
+
+Ubuntu 、 python
+
+# 文件说明
 
 m3u_auto.py                主程序，运行后生成live.m3u，并上传cloudflare worker 
 

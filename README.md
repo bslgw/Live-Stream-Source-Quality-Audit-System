@@ -1,7 +1,7 @@
 # 📡 直播源质量审计系统
 
 
-# 下载 FFmpeg 6.1
+# # #下载 FFmpeg 6.1
 
 ```
 wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-6.1-amd64-static.tar.xz

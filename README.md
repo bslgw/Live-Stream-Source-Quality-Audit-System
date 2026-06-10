@@ -6,7 +6,7 @@ m3u_auto.py                主程序，运行后生成live.m3u，并上传cloudf
 
 config.json                主程序参数配置文件
 
-config_editor.py           可视化管理参数配置
+config_editor.py           可视化管理参数配置，http://ip:5000   
 
 auto_blacklist.json        死链黑名单
 

@@ -11,9 +11,9 @@ fi
 echo "上传 live.m3u ..."
 
 # 使用 curl 上传
-/usr/bin/curl -s -L -X POST --data-binary @"$FILE" "https://m3u.bbsok.cc.cd/upload?name=live.m3u"
+/usr/bin/curl -s -L -X POST --data-binary @"$FILE" "https://worker绑定域名/upload?name=live.m3u"
 
 echo
 echo "上传完成"
 echo "访问地址:"
-echo "https://m3u.bbsok.cc.cd/f/live.m3u"
+echo "https://worker绑定域名/f/live.m3u"
